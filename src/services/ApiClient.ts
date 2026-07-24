@@ -2,24 +2,17 @@ export class ApiClient {
 
     public async get(url: string): Promise<any> {
 
-        const response = await fetch(url, {
-            method: "GET",
-            headers: {
-                "Accept": "application/json"
-            }
+        const response = await fetch('/api/xtream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
         });
 
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}`);
         }
 
-        const contentType = response.headers.get("content-type") ?? "";
-
-        if (contentType.includes("application/json")) {
-            return response.json();
-        }
-
-        return response.text();
+        return response.json();
 
     }
 
