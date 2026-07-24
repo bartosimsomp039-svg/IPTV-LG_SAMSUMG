@@ -64,17 +64,14 @@ export class Movies {
         movies.forEach(movie => {
 
             const icon = movie.stream_icon
-                ? `<img
-                    src="${movie.stream_icon}"
-                    alt="${movie.name}"
-                    width="70"
-                    height="70"
-                    style="width:70px;height:70px;max-width:70px;max-height:70px;object-fit:contain;display:block;flex-shrink:0;"
-                    onerror="this.style.display='none';this.parentElement.querySelector('.movie-placeholder').style.display='flex'"
-                  ><div class="movie-placeholder" style="display:none">🎬</div>`
-                : `<div class="movie-placeholder">🎬</div>`;
+    ? `<img
+        src="${movie.stream_icon}"
+        alt="${movie.name}"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+      ><div class="movie-placeholder" style="display:none">🎬</div>`
+    : `<div class="movie-placeholder">🎬</div>`;
 
-            html += `
+           html += `
 <div class="movie-card" tabindex="0" data-id="${movie.stream_id}">
     ${icon}
     <span>${movie.name}</span>
