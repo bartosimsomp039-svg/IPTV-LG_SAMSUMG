@@ -64,15 +64,12 @@ export class SeriesPage {
         series.forEach(s => {
 
             const icon = s.cover
-                ? `<img
-                    src="${s.cover}"
-                    alt="${s.name}"
-                    width="70"
-                    height="70"
-                    style="width:70px;height:70px;max-width:70px;max-height:70px;object-fit:contain;display:block;flex-shrink:0;"
-                    onerror="this.style.display='none';this.parentElement.querySelector('.series-placeholder').style.display='flex'"
-                  ><div class="series-placeholder" style="display:none">📺</div>`
-                : `<div class="series-placeholder">📺</div>`;
+    ? `<img
+        src="${s.cover}"
+        alt="${s.name}"
+        onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"
+      ><div class="series-placeholder" style="display:none">📺</div>`
+    : `<div class="series-placeholder">📺</div>`;
 
             html += `
 <div class="series-card" tabindex="0" data-id="${s.series_id}">
