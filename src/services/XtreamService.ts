@@ -1,0 +1,232 @@
+import { ApiClient } from "./ApiClient";
+
+import type { Category } from "../models/Category";
+import type { Channel } from "../models/Channel";
+import type { Movie } from "../models/Movie";
+import type { Series } from "../models/Series";
+
+export class XtreamService {
+
+    private readonly api: ApiClient;
+
+    private host = "";
+
+    private username = "";
+
+    private password = "";
+
+    constructor() {
+
+        this.api = new ApiClient();
+
+    }
+
+    public async login(
+        host: string,
+        username: string,
+        password: string
+    ): Promise<boolean> {
+
+        host = host.trim();
+
+        if (!host.startsWith("http://") &&
+            !host.startsWith("https://")) {
+
+            host = "http://" + host;
+
+        }
+
+        if (host.endsWith("/")) {
+
+            host = host.slice(0, -1);
+
+        }
+
+        const url =
+            `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+
+        try {
+
+            const data = await this.api.get(url);
+
+            if (!data || !data.user_info) {
+
+                return false;
+
+            }
+
+            this.host = host;
+            this.username = username;
+            this.password = password;
+
+            return true;
+
+        } catch (error) {
+
+            console.error("Xtream Login Error:", error);
+
+            return false;
+
+        }
+
+    }
+
+    private buildUrl(action: string): string {
+
+        return `${this.host}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}&action=${action}`;
+
+    }
+
+    public async getLiveCategories(): Promise<Category[]> {
+
+        return await this.api.get(
+            this.buildUrl("get_live_categories")
+        );
+
+    }
+
+    public async getMovieCategories(): Promise<Category[]> {
+
+        return await this.api.get(
+            this.buildUrl("get_vod_categories")
+        );
+
+    }
+
+    public async getSeriesCategories(): Promise<Category[]> {
+
+        return await this.api.get(
+            this.buildUrl("get_series_categories")
+        );
+
+    }
+
+    public async getLiveStreams(
+        categoryId?: string
+    ): Promise<Channel[]> {
+
+        let url = this.buildUrl("get_live_streams");
+
+        if (categoryId) {
+
+            url += `&category_id=${categoryId}`;
+
+        }
+
+        return await this.api.get(url);
+
+    }
+
+    public async getVodStreams(
+        categoryId?: string
+    ): Promise<Movie[]> {
+
+        let url = this.buildUrl("get_vod_streams");
+
+        if (categoryId) {
+
+            url += `&category_id=${categoryId}`;
+
+        }
+
+        return await this.api.get(url);
+
+    }
+
+    public async getSeries(
+        categoryId?: string
+    ): Promise<Series[]> {
+
+        let url = this.buildUrl("get_series");
+
+        if (categoryId) {
+
+            url += `&category_id=${categoryId}`;
+
+        }
+
+        return await this.api.get(url);
+
+    }
+
+    public async getSeriesInfo(seriesId: number): Promise<any> {
+
+        const url =
+            this.buildUrl("get_series_info") +
+            `&series_id=${seriesId}`;
+
+        return await this.api.get(url);
+
+    }
+
+    // =====================================================
+    // STREAM URLS
+    // =====================================================
+
+    public getLiveStreamUrl(streamId: number): string {
+
+        return `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.m3u8`;
+
+    }
+
+    public getLiveTsUrl(streamId: number): string {
+
+        return `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
+
+    }
+
+    public getMovieStreamUrl(
+        streamId: number,
+        extension: string
+    ): string {
+
+        return `${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
+
+    }
+
+    public getSeriesStreamUrl(
+        streamId: number,
+        extension: string
+    ): string {
+
+        return `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
+
+    }
+
+    // =====================================================
+    // SESSION
+    // =====================================================
+
+    public getCredentials(): {
+        host: string;
+        username: string;
+        password: string;
+    } {
+
+        return {
+            host: this.host,
+            username: this.username,
+            password: this.password
+        };
+
+    }
+
+    public isLogged(): boolean {
+
+        return (
+            this.host.length > 0 &&
+            this.username.length > 0 &&
+            this.password.length > 0
+        );
+
+    }
+
+    public logout(): void {
+
+        this.host = "";
+        this.username = "";
+        this.password = "";
+
+    }
+
+}

@@ -1,0 +1,54 @@
+.live {
+    width: 100%;
+    height: 100%;
+}
+
+.live-content {
+    padding: 32px 40px;
+}
+
+.back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: transparent;
+    border: 1px solid #444;
+    color: white;
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    margin-bottom: 20px;
+    transition: background 0.2s, border-color 0.2s;
+}
+
+.back-btn:hover,
+.back-btn.tv-focus {
+    background: #2a2a2a;
+    border-color: #8d4dff;
+}
+
+.live-content h1 {
+    color: white;
+    font-size: 26px;
+    font-weight: 700;
+    margin-bottom: 28px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.live-content h1::before {
+    content: "";
+    display: inline-block;
+    width: 4px;
+    height: 26px;
+    background: #8d4dff;
+    border-radius: 2px;
+}
+
+.channel-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 14px;
+}

@@ -1,0 +1,389 @@
+:root{
+
+    --bg:#09090f;
+    --panel:#14141d;
+    --panel2:#1c1c28;
+
+    --purple:#8d4dff;
+    --purple2:#b86cff;
+
+    --text:#ffffff;
+    --sub:#bdbdc7;
+
+}
+
+*{
+
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+
+}
+
+body{
+
+    font-family:Segoe UI,Arial,sans-serif;
+    background:var(--bg);
+    color:white;
+    overflow:hidden;
+
+}
+
+.home{
+
+    width:100vw;
+    height:100vh;
+
+    overflow-y:auto;
+
+    background:
+    radial-gradient(circle at top,#3b0c73 0%,transparent 45%),
+    linear-gradient(180deg,#111118,#09090f);
+
+}
+
+.home::-webkit-scrollbar{
+
+    display:none;
+
+}
+
+/**************************
+HEADER
+**************************/
+
+.header{
+
+    height:90px;
+
+    display:flex;
+
+    align-items:center;
+
+    justify-content:space-between;
+
+    padding:0 50px;
+
+    backdrop-filter:blur(25px);
+
+    background:rgba(10,10,20,.45);
+
+    border-bottom:1px solid rgba(255,255,255,.08);
+
+}
+
+.logo{
+
+    display:flex;
+
+    align-items:center;
+
+    gap:15px;
+
+}
+
+.logo h1{
+
+    font-size:34px;
+
+    color:white;
+
+}
+
+.logo span{
+
+    color:var(--purple2);
+
+    font-weight:bold;
+
+}
+
+.menu{
+
+    display:flex;
+
+    gap:30px;
+
+}
+
+.menu button{
+
+    border:none;
+
+    background:none;
+
+    color:#ddd;
+
+    font-size:18px;
+
+    cursor:pointer;
+
+    transition:.25s;
+
+}
+
+.menu button:hover{
+
+    color:white;
+
+}
+
+.menu button.active{
+
+    color:white;
+
+    text-shadow:0 0 15px var(--purple);
+
+}
+
+/**************************
+BANNER
+**************************/
+
+.banner{
+
+    margin:35px;
+
+    height:340px;
+
+    border-radius:25px;
+
+    overflow:hidden;
+
+    background:
+
+    linear-gradient(90deg,
+    rgba(0,0,0,.82),
+    rgba(0,0,0,.25)),
+
+    url("https://images.unsplash.com/photo-1489599849927-2ee91cede3ba?auto=format&fit=crop&w=1800&q=80");
+
+    background-size:cover;
+
+    background-position:center;
+
+    display:flex;
+
+    align-items:center;
+
+}
+
+.bannerContent{
+
+    width:45%;
+
+    padding-left:60px;
+
+}
+
+.bannerContent h2{
+
+    font-size:50px;
+
+    margin-bottom:20px;
+
+}
+
+.bannerContent p{
+
+    color:#d0d0d0;
+
+    line-height:1.8;
+
+    margin-bottom:30px;
+
+}
+
+.bannerButtons{
+
+    display:flex;
+
+    gap:20px;
+
+}
+
+.bannerButtons button{
+
+    border:none;
+
+    padding:15px 35px;
+
+    border-radius:14px;
+
+    font-size:17px;
+
+    cursor:pointer;
+
+}
+
+.play{
+
+    background:var(--purple);
+
+    color:white;
+
+}
+
+.info{
+
+    background:rgba(255,255,255,.1);
+
+    color:white;
+
+}
+
+/**************************
+ROWS
+**************************/
+
+.row{
+
+    margin:0 35px 45px;
+
+}
+
+.row h2{
+
+    margin-bottom:20px;
+
+    font-size:25px;
+
+}
+
+.cards{
+
+    display:flex;
+
+    gap:20px;
+
+}
+
+/**************************
+POSTERS
+**************************/
+
+.poster{
+
+    width:220px;
+
+    height:320px;
+
+    border-radius:18px;
+
+    background:linear-gradient(
+    180deg,
+    #35354b,
+    #1b1b27);
+
+    display:flex;
+
+    justify-content:center;
+
+    align-items:flex-end;
+
+    padding:20px;
+
+    cursor:pointer;
+
+    transition:.30s;
+
+    border:2px solid transparent;
+
+    position:relative;
+
+}
+
+.poster span{
+
+    font-weight:bold;
+
+    text-align:center;
+
+}
+
+.poster:hover{
+
+    transform:scale(1.08);
+
+    border-color:var(--purple);
+
+    box-shadow:
+    0 0 20px var(--purple),
+    0 0 50px rgba(141,77,255,.45);
+
+}
+
+.poster::before{
+
+    content:"";
+
+    position:absolute;
+
+    inset:0;
+
+    border-radius:18px;
+
+    background:
+
+    linear-gradient(
+    transparent,
+    rgba(0,0,0,.65));
+
+}
+
+.poster span{
+
+    position:relative;
+
+    z-index:2;
+
+}
+
+/**************************
+TV FOCUS
+**************************/
+
+.tv-focus{
+
+    transform:scale(1.08);
+
+    border:2px solid var(--purple);
+
+    box-shadow:
+
+    0 0 25px var(--purple),
+
+    0 0 70px rgba(141,77,255,.5);
+
+}
+
+/**************************
+ANIMATION
+**************************/
+
+@keyframes fade{
+
+    from{
+
+        opacity:0;
+
+        transform:translateY(25px);
+
+    }
+
+    to{
+
+        opacity:1;
+
+        transform:none;
+
+    }
+
+}
+
+.banner,
+.row{
+
+    animation:fade .45s ease;
+
+}
