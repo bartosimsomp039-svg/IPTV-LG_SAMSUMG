@@ -21,7 +21,7 @@ export class SeriesPage {
                 <button class="back-btn" id="backBtn">&#8592; Volver</button>
                 <input class="series-search" id="seriesSearch" type="text" placeholder="🔍 Buscar...">
             </div>
-            <div class="series-grid-container">
+            <div class="series-grid-container" id="seriesGridContainer">
                 <div id="seriesGrid" class="series-grid"></div>
             </div>
         </div>
@@ -33,8 +33,7 @@ export class SeriesPage {
 
         const goBack = () => Router.getInstance().navigate("home");
 
-        document.getElementById("backBtn")
-            ?.addEventListener("click", goBack);
+        document.getElementById("backBtn")?.addEventListener("click", goBack);
 
         const categories = DataManager.seriesCategories;
         const allSeries = DataManager.series;
@@ -42,7 +41,7 @@ export class SeriesPage {
         let activeCategoryId: number | null = null;
         let searchQuery = "";
 
-        // ── SIDEBAR ──────────────────────────────────────
+        // SIDEBAR
         const sidebar = document.getElementById("seriesSidebar")!;
 
         const totalItem = document.createElement("div");
@@ -76,14 +75,13 @@ export class SeriesPage {
             el.classList.add("active");
         }
 
-        // ── SEARCH ───────────────────────────────────────
-        document.getElementById("seriesSearch")
-            ?.addEventListener("input", (e) => {
-                searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
-                renderGrid();
-            });
+        // SEARCH
+        document.getElementById("seriesSearch")?.addEventListener("input", (e) => {
+            searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+            renderGrid();
+        });
 
-        // ── GRID ─────────────────────────────────────────
+        // GRID
         const container = document.getElementById("seriesGrid")!;
 
         function renderGrid() {
@@ -102,31 +100,48 @@ export class SeriesPage {
                 return;
             }
 
-            container.innerHTML = filtered.map((s, i) => {
-                const icon = s.cover
-                    ? `<img src="${s.cover}" alt="${s.name}"
-                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                       <div class="series-placeholder" style="display:none">📺</div>`
-                    : `<div class="series-placeholder">📺</div>`;
+            let page = 0;
+            const PAGE_SIZE = 60;
 
-                return `<div class="series-card" tabindex="0" data-index="${i}">
-                    ${icon}
-                    <span>${s.name}</span>
-                </div>`;
-            }).join("");
+            function renderPage() {
+                const slice = filtered.slice(0, (page + 1) * PAGE_SIZE);
+                container.innerHTML = slice.map((s, i) => {
+                    const icon = s.cover
+                        ? `<img src="${s.cover}" alt="${s.name}" loading="lazy"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                           <div class="series-placeholder" style="display:none">📺</div>`
+                        : `<div class="series-placeholder">📺</div>`;
+                    return `<div class="series-card" tabindex="0" data-index="${i}">${icon}<span>${s.name}</span></div>`;
+                }).join("");
 
-            container.querySelectorAll<HTMLElement>(".series-card")
-                .forEach((card) => {
+                container.querySelectorAll<HTMLElement>(".series-card").forEach((card) => {
                     card.addEventListener("click", () => {
                         const idx = Number(card.dataset.index);
+                        Navigation.type = "series";
                         Navigation.selectedSeries = filtered[idx];
                         Router.getInstance().navigate("series-detail");
                     });
                 });
 
-            const focus = new FocusManager();
-            focus.register(".series-card");
-            new Keyboard(focus, goBack);
+                const focus = new FocusManager();
+                focus.register(".series-card");
+                new Keyboard(focus, goBack);
+            }
+
+            renderPage();
+
+            const scrollContainer = document.getElementById("seriesGridContainer");
+            if (scrollContainer) {
+                scrollContainer.onscroll = () => {
+                    const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+                    if (scrollTop + clientHeight >= scrollHeight - 300) {
+                        if ((page + 1) * PAGE_SIZE < filtered.length) {
+                            page++;
+                            renderPage();
+                        }
+                    }
+                };
+            }
         }
 
         renderGrid();

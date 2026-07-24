@@ -2,10 +2,10 @@ import "./Movies.css";
 
 import { Header } from "../../components/Header";
 import { DataManager } from "../../services/DataManager";
+import { Navigation } from "../../services/Navigation";
 import { Router } from "../../app/Router";
 import { FocusManager } from "../../tv/FocusManager";
 import { Keyboard } from "../../tv/Keyboard";
-import { Navigation } from "../../services/Navigation";
 
 export class Movies {
 
@@ -21,7 +21,7 @@ export class Movies {
                 <button class="back-btn" id="backBtn">&#8592; Volver</button>
                 <input class="movies-search" id="moviesSearch" type="text" placeholder="🔍 Buscar...">
             </div>
-            <div class="movies-grid-container">
+            <div class="movies-grid-container" id="moviesGridContainer">
                 <div id="moviesGrid" class="movies-grid"></div>
             </div>
         </div>
@@ -33,8 +33,7 @@ export class Movies {
 
         const goBack = () => Router.getInstance().navigate("home");
 
-        document.getElementById("backBtn")
-            ?.addEventListener("click", goBack);
+        document.getElementById("backBtn")?.addEventListener("click", goBack);
 
         const categories = DataManager.movieCategories;
         const allMovies = DataManager.movies;
@@ -42,7 +41,7 @@ export class Movies {
         let activeCategoryId: number | null = null;
         let searchQuery = "";
 
-        // ── SIDEBAR ──────────────────────────────────────
+        // SIDEBAR
         const sidebar = document.getElementById("moviesSidebar")!;
 
         const totalItem = document.createElement("div");
@@ -76,14 +75,13 @@ export class Movies {
             el.classList.add("active");
         }
 
-        // ── SEARCH ───────────────────────────────────────
-        document.getElementById("moviesSearch")
-            ?.addEventListener("input", (e) => {
-                searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
-                renderGrid();
-            });
+        // SEARCH
+        document.getElementById("moviesSearch")?.addEventListener("input", (e) => {
+            searchQuery = (e.target as HTMLInputElement).value.toLowerCase();
+            renderGrid();
+        });
 
-        // ── GRID ─────────────────────────────────────────
+        // GRID
         const container = document.getElementById("moviesGrid")!;
 
         function renderGrid() {
@@ -102,34 +100,48 @@ export class Movies {
                 return;
             }
 
-            container.innerHTML = filtered.map((movie, i) => {
-                const icon = movie.stream_icon
-                    ? `<img src="${movie.stream_icon}" alt="${movie.name}"
-                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                       <div class="movie-placeholder" style="display:none">🎬</div>`
-                    : `<div class="movie-placeholder">🎬</div>`;
+            let page = 0;
+            const PAGE_SIZE = 60;
 
-                return `<div class="movie-card" tabindex="0" data-index="${i}">
-                    ${icon}
-                    <span>${movie.name}</span>
-                </div>`;
-            }).join("");
+            function renderPage() {
+                const slice = filtered.slice(0, (page + 1) * PAGE_SIZE);
+                container.innerHTML = slice.map((movie, i) => {
+                    const icon = movie.stream_icon
+                        ? `<img src="${movie.stream_icon}" alt="${movie.name}" loading="lazy"
+                             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+                           <div class="movie-placeholder" style="display:none">🎬</div>`
+                        : `<div class="movie-placeholder">🎬</div>`;
+                    return `<div class="movie-card" tabindex="0" data-index="${i}">${icon}<span>${movie.name}</span></div>`;
+                }).join("");
 
-            container.querySelectorAll<HTMLElement>(".movie-card")
-                .forEach((card) => {
+                container.querySelectorAll<HTMLElement>(".movie-card").forEach((card) => {
                     card.addEventListener("click", () => {
                         const idx = Number(card.dataset.index);
-                        const movie = filtered[idx];
-                        if (movie) {
-                            Navigation.selectedMovie = movie;
-                            Router.getInstance().navigate("player");
-                        }
+                        Navigation.type = "movie";
+                        Navigation.selectedMovie = filtered[idx];
+                        Router.getInstance().navigate("player");
                     });
                 });
 
-            const focus = new FocusManager();
-            focus.register(".movie-card");
-            new Keyboard(focus, goBack);
+                const focus = new FocusManager();
+                focus.register(".movie-card");
+                new Keyboard(focus, goBack);
+            }
+
+            renderPage();
+
+            const scrollContainer = document.getElementById("moviesGridContainer");
+            if (scrollContainer) {
+                scrollContainer.onscroll = () => {
+                    const { scrollTop, scrollHeight, clientHeight } = scrollContainer;
+                    if (scrollTop + clientHeight >= scrollHeight - 300) {
+                        if ((page + 1) * PAGE_SIZE < filtered.length) {
+                            page++;
+                            renderPage();
+                        }
+                    }
+                };
+            }
         }
 
         renderGrid();
