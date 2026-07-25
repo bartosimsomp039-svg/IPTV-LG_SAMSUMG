@@ -56,9 +56,11 @@ export class Live {
 
         if (!container) return;
 
-        const channels = DataManager.liveChannels.filter(
-            channel => Number(channel.category_id) === Navigation.categoryId
-        );
+        const channels = Navigation.categoryId === 0
+    ? DataManager.liveChannels
+    : DataManager.liveChannels.filter(
+        channel => Number(channel.category_id) === Navigation.categoryId
+    );
 
         let html = "";
 
