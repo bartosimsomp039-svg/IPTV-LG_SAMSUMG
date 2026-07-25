@@ -133,9 +133,10 @@ export class Home {
             if (titleEl) titleEl.textContent = pick.name;
             if (yearEl && (pick as any).year) yearEl.textContent = (pick as any).year;
             document.getElementById("btnWatch")?.addEventListener("click", () => {
-                Navigation.selectedMovie = pick;
-                Router.getInstance().navigate("player");
-            });
+    Navigation.type = "movie";
+    Navigation.selectedMovie = pick;
+    Router.getInstance().navigate("player");
+});
         }
 
         const recentMoviesEl = document.getElementById("recentMovies");
@@ -150,9 +151,10 @@ export class Home {
             ).join("");
             recentMoviesEl.querySelectorAll<HTMLElement>(".mini-card").forEach((card, i) => {
                 card.addEventListener("click", () => {
-                    Navigation.selectedMovie = recent[i];
-                    Router.getInstance().navigate("player");
-                });
+    Navigation.type = "movie";
+    Navigation.selectedMovie = recent[i];
+    Router.getInstance().navigate("player");
+});
             });
         }
 
@@ -168,23 +170,33 @@ export class Home {
             ).join("");
             recentSeriesEl.querySelectorAll<HTMLElement>(".mini-card").forEach((card, i) => {
                 card.addEventListener("click", () => {
-                    Navigation.selectedSeries = recent[i];
-                    Router.getInstance().navigate("series-detail");
-                });
+                Navigation.type = "series";
+                Navigation.selectedSeries = recent[i];
+                Router.getInstance().navigate("series-detail");
+            });
             });
         }
 
         const liveEl = document.getElementById("liveChannels");
-        if (liveEl) {
-            const channels = DataManager.liveChannels.filter(c => c.stream_icon).slice(0, 15);
-            liveEl.innerHTML = channels.map((c, i) =>
-                `<div class="mini-card" data-index="${i}">
-                    <img src="${c.stream_icon}" alt="${c.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
-                    <div class="mini-card-placeholder" style="display:none">📡</div>
-                    <div class="mini-card-info"><div class="mini-card-title">${c.name}</div></div>
-                </div>`
-            ).join("");
-        }
+if (liveEl) {
+    const channels = DataManager.liveChannels.filter(c => c.stream_icon).slice(0, 15);
+    liveEl.innerHTML = channels.map((c, i) =>
+        `<div class="mini-card" data-index="${i}">
+            <img src="${c.stream_icon}" alt="${c.name}" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+            <div class="mini-card-placeholder" style="display:none">📡</div>
+            <div class="mini-card-info"><div class="mini-card-title">${c.name}</div></div>
+        </div>`
+    ).join("");
+
+    // ✅ FIX: click en canal directo al player
+    liveEl.querySelectorAll<HTMLElement>(".mini-card").forEach((card, i) => {
+        card.addEventListener("click", () => {
+            Navigation.type = "live";
+            Navigation.selectedChannel = channels[i];
+            Router.getInstance().navigate("player");
+        });
+    });
+}
 
         document.getElementById("navMovies")?.addEventListener("click", () => {
             Navigation.categoryId = 0;
@@ -196,6 +208,13 @@ export class Home {
             Navigation.categoryId = 0;
             Navigation.categoryName = "SERIES";
             Router.getInstance().navigate("series");
+        });
+
+        document.getElementById("navLive")?.addEventListener("click", () => {
+            Navigation.type = "live";
+            Navigation.categoryId = 0;
+            Navigation.categoryName = "TV EN VIVO";
+            Router.getInstance().navigate("live");
         });
 
         document.getElementById("seeAllMovies")?.addEventListener("click", () => {

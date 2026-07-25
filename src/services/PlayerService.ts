@@ -128,19 +128,7 @@ export class PlayerService {
             this.currentChannel.stream_id
         );
 
-        this.playUrl(url, true);
-
-    }
-
-    private playTS(): void {
-
-        if (!this.currentChannel) return;
-
-        const url = this.xtream.getLiveTsUrl(
-            this.currentChannel.stream_id
-        );
-
-        this.playUrl(url, false);
+        this.playUrl(url);
 
     }
 
@@ -160,7 +148,7 @@ export class PlayerService {
             ext
         );
 
-        this.playUrl(url, false);
+        this.playUrl(url);
 
     }
 
@@ -181,7 +169,7 @@ export class PlayerService {
             extension
         );
 
-        this.playUrl(url, false);
+        this.playUrl(url);
 
     }
 
@@ -205,7 +193,7 @@ export class PlayerService {
 
     }
 
-    private playUrl(url: string, firstAttempt: boolean): void {
+    private playUrl(url: string): void {
 
         if (this.currentUrl === url) return;
 
@@ -217,12 +205,17 @@ export class PlayerService {
         this.video.removeAttribute("src");
         this.video.load();
 
-        if (
-            Hls.isSupported() &&
-            url.toLowerCase().includes(".m3u8")
-        ) {
+        const urlLower = url.toLowerCase();
 
-            console.log("Usando hls.js");
+        // ✅ FIX: live siempre usa HLS.js (Xtream sirve HLS sin extensión .m3u8)
+        // VOD solo usa HLS.js si la URL es explícitamente .m3u8
+        const shouldUseHls = this.isVod
+            ? urlLower.includes(".m3u8")
+            : true;
+
+        if (Hls.isSupported() && shouldUseHls) {
+
+            console.log("Usando hls.js →", url);
 
             this.hls = new Hls({
                 enableWorker: true,
@@ -249,14 +242,7 @@ export class PlayerService {
 
                 promise?.catch(() => {
 
-                    if (firstAttempt) {
-                        this.currentUrl = "";
-                        this.playTS();
-                        return;
-                    }
-
-                    this.currentUrl = "";
-                    this.reconnect();
+                    console.warn("Autoplay bloqueado por el navegador");
 
                 });
 
@@ -264,19 +250,14 @@ export class PlayerService {
 
             this.hls.on(Hls.Events.ERROR, (_event, data) => {
 
-                console.log("HLS ERROR", data);
+                console.warn("HLS ERROR", data.type, data.details, data.fatal);
 
                 if (!data.fatal) return;
 
                 this.destroyHls();
-
-                if (firstAttempt) {
-                    this.currentUrl = "";
-                    this.playTS();
-                    return;
-                }
-
                 this.currentUrl = "";
+
+                // ✅ FIX: reconectar en vez de intentar .ts (navegador no soporta TS)
                 this.reconnect();
 
             });
@@ -285,9 +266,10 @@ export class PlayerService {
 
         }
 
+        // Safari: HLS nativo
         if (this.video.canPlayType("application/vnd.apple.mpegurl")) {
 
-            console.log("Usando HLS nativo");
+            console.log("Usando HLS nativo (Safari) →", url);
 
             this.video.src = url;
             this.video.load();
@@ -296,12 +278,7 @@ export class PlayerService {
 
             promise?.catch(() => {
 
-                if (firstAttempt) {
-                    this.currentUrl = "";
-                    this.playTS();
-                    return;
-                }
-
+                console.warn("Autoplay bloqueado por Safari");
                 this.currentUrl = "";
                 this.reconnect();
 
@@ -311,7 +288,8 @@ export class PlayerService {
 
         }
 
-        console.log("Reproducción directa");
+        // Reproducción directa (MP4, etc.)
+        console.log("Reproducción directa →", url);
 
         this.video.src = url;
         this.video.load();
@@ -320,14 +298,12 @@ export class PlayerService {
 
         promise?.catch(() => {
 
-            if (firstAttempt) {
-                this.currentUrl = "";
-                this.playTS();
-                return;
-            }
-
+            console.warn("Error en reproducción directa");
             this.currentUrl = "";
-            this.reconnect();
+
+            if (!this.isVod) {
+                this.reconnect();
+            }
 
         });
 
@@ -342,7 +318,7 @@ export class PlayerService {
 
         if (this.reconnectAttempts >= this.maxReconnectAttempts) {
 
-            console.error("No fue posible reconectar.");
+            console.error("No fue posible reconectar después de", this.maxReconnectAttempts, "intentos.");
             this.reconnecting = false;
             return;
 
@@ -357,7 +333,7 @@ export class PlayerService {
 
         const delay = Math.min(2000 * this.reconnectAttempts, 8000);
 
-        console.log("Reconectando...", this.reconnectAttempts);
+        console.log(`Reconectando en ${delay}ms... (intento ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
 
         this.reconnectTimer = window.setTimeout(() => {
 
