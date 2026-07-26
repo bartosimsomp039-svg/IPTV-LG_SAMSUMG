@@ -22,18 +22,18 @@ export class XtreamService {
     }
 
     // =====================================================
-    // PROXY: redirige URLs HTTP por /api/proxy para evitar
-    // el bloqueo Mixed Content en páginas HTTPS (Vercel)
+    // PROXY para streams (HLS.js los carga directamente,
+    // no pasan por ApiClient → necesitan /api/proxy)
+    // Las llamadas a player_api.php SÍ pasan por ApiClient
+    // que ya usa /api/xtream internamente → no necesitan proxy
     // =====================================================
 
-    private proxify(url: string): string {
+    private proxifyStream(url: string): string {
 
-        // Si la URL ya es HTTPS no necesita proxy
         if (url.startsWith("https://")) {
             return url;
         }
 
-        // Rutas relativas o ya proxificadas — sin cambios
         if (!url.startsWith("http://")) {
             return url;
         }
@@ -63,12 +63,9 @@ export class XtreamService {
 
         }
 
-        // ✅ FIX: la llamada a player_api.php también pasa por el proxy
-        //         para evitar Mixed Content en la autenticación
-        const rawUrl =
+        // ApiClient ya proxifica via /api/xtream — pasar URL directa
+        const url =
             `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
-
-        const url = this.proxify(rawUrl);
 
         try {
 
@@ -98,11 +95,8 @@ export class XtreamService {
 
     private buildUrl(action: string): string {
 
-        const rawUrl =
-            `${this.host}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}&action=${action}`;
-
-        // ✅ FIX: todas las llamadas a la API también pasan por el proxy
-        return this.proxify(rawUrl);
+        // ApiClient ya proxifica via /api/xtream — pasar URL directa
+        return `${this.host}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}&action=${action}`;
 
     }
 
@@ -189,20 +183,22 @@ export class XtreamService {
     }
 
     // =====================================================
-    // STREAM URLS — todas pasan por el proxy automáticamente
+    // STREAM URLS
+    // HLS.js las carga directo (no usa ApiClient)
+    // → deben pasar por /api/proxy para evitar Mixed Content
     // =====================================================
 
     public getLiveStreamUrl(streamId: number): string {
 
         const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.m3u8`;
-        return this.proxify(raw);
+        return this.proxifyStream(raw);
 
     }
 
     public getLiveTsUrl(streamId: number): string {
 
         const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
-        return this.proxify(raw);
+        return this.proxifyStream(raw);
 
     }
 
@@ -212,7 +208,7 @@ export class XtreamService {
     ): string {
 
         const raw = `${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
-        return this.proxify(raw);
+        return this.proxifyStream(raw);
 
     }
 
@@ -222,7 +218,7 @@ export class XtreamService {
     ): string {
 
         const raw = `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
-        return this.proxify(raw);
+        return this.proxifyStream(raw);
 
     }
 
