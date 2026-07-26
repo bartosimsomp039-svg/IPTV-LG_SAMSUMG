@@ -21,23 +21,23 @@ export class XtreamService {
 
     }
 
-    // =====================================================
-    // PROXY para streams (HLS.js los carga directamente,
-    // no pasan por ApiClient → necesitan /api/proxy)
-    // Las llamadas a player_api.php SÍ pasan por ApiClient
-    // que ya usa /api/xtream internamente → no necesitan proxy
-    // =====================================================
-
+    // ── Proxifica streams (video HLS) ─────────────────────
     private proxifyStream(url: string): string {
 
-        if (url.startsWith("https://")) {
-            return url;
-        }
+        if (url.startsWith("https://")) return url;
+        if (!url.startsWith("http://")) return url;
+        return `/api/proxy?url=${encodeURIComponent(url)}`;
 
-        if (!url.startsWith("http://")) {
-            return url;
-        }
+    }
 
+    // ── Proxifica imágenes (logos, portadas, iconos) ──────
+    // FIX Mixed Content: rutas http:// bloqueadas por el browser
+    // porque la página corre en https://. Se redirigen por /api/proxy.
+    private proxifyImage(url: string | null | undefined): string {
+
+        if (!url) return "";
+        if (url.startsWith("https://")) return url;
+        if (!url.startsWith("http://")) return url;
         return `/api/proxy?url=${encodeURIComponent(url)}`;
 
     }
@@ -63,7 +63,6 @@ export class XtreamService {
 
         }
 
-        // ApiClient ya proxifica via /api/xtream — pasar URL directa
         const url =
             `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
 
@@ -95,7 +94,6 @@ export class XtreamService {
 
     private buildUrl(action: string): string {
 
-        // ApiClient ya proxifica via /api/xtream — pasar URL directa
         return `${this.host}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}&action=${action}`;
 
     }
@@ -136,7 +134,13 @@ export class XtreamService {
 
         }
 
-        return await this.api.get(url);
+        const data: Channel[] = await this.api.get(url);
+
+        // Proxificar logos de canales para evitar Mixed Content
+        return data.map(ch => ({
+            ...ch,
+            stream_icon: this.proxifyImage(ch.stream_icon),
+        }));
 
     }
 
@@ -152,7 +156,13 @@ export class XtreamService {
 
         }
 
-        return await this.api.get(url);
+        const data: Movie[] = await this.api.get(url);
+
+        // Proxificar portadas de películas
+        return data.map(m => ({
+            ...m,
+            stream_icon: this.proxifyImage(m.stream_icon),
+        }));
 
     }
 
@@ -168,7 +178,13 @@ export class XtreamService {
 
         }
 
-        return await this.api.get(url);
+        const data: Series[] = await this.api.get(url);
+
+        // Proxificar portadas de series
+        return data.map(s => ({
+            ...s,
+            cover: this.proxifyImage(s.cover),
+        }));
 
     }
 
@@ -178,15 +194,27 @@ export class XtreamService {
             this.buildUrl("get_series_info") +
             `&series_id=${seriesId}`;
 
-        return await this.api.get(url);
+        const data = await this.api.get(url);
+
+        // Proxificar portada de detalle de serie
+        if (data?.info?.cover) {
+            data.info.cover = this.proxifyImage(data.info.cover);
+        }
+        if (data?.info?.backdrop_path) {
+            if (Array.isArray(data.info.backdrop_path)) {
+                data.info.backdrop_path = data.info.backdrop_path.map(
+                    (u: string) => this.proxifyImage(u)
+                );
+            } else {
+                data.info.backdrop_path = this.proxifyImage(data.info.backdrop_path);
+            }
+        }
+
+        return data;
 
     }
 
-    // =====================================================
-    // STREAM URLS
-    // HLS.js las carga directo (no usa ApiClient)
-    // → deben pasar por /api/proxy para evitar Mixed Content
-    // =====================================================
+    // ── Stream URLs ───────────────────────────────────────
 
     public getLiveStreamUrl(streamId: number): string {
 
@@ -222,9 +250,7 @@ export class XtreamService {
 
     }
 
-    // =====================================================
-    // SESSION
-    // =====================================================
+    // ── Session ───────────────────────────────────────────
 
     public getCredentials(): {
         host: string;
