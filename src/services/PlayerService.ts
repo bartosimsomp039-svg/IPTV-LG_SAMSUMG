@@ -26,6 +26,14 @@ export class PlayerService {
 
     private isVod = false;
 
+    // ✅ FIX: contador para detectar fragParsingError repetido
+    private fragParseErrors = 0;
+
+    private readonly maxFragParseErrors = 3;
+
+    // ✅ FIX: flag para saber si ya intentamos con .ts directo
+    private triedTsUrl = false;
+
     constructor(
         video: HTMLVideoElement,
         xtream: XtreamService
@@ -42,8 +50,10 @@ export class PlayerService {
 
         this.video.addEventListener("playing", () => {
 
+            // Reset contadores cuando reproduce bien
             this.reconnecting = false;
             this.reconnectAttempts = 0;
+            this.fragParseErrors = 0;
 
             console.log("Playback iniciado correctamente.");
 
@@ -103,6 +113,8 @@ export class PlayerService {
         this.currentChannel = channel;
         this.reconnectAttempts = 0;
         this.reconnecting = false;
+        this.fragParseErrors = 0;
+        this.triedTsUrl = false;
 
         this.playM3U8();
 
@@ -116,6 +128,8 @@ export class PlayerService {
         this.currentChannel = channel;
         this.reconnectAttempts = 0;
         this.reconnecting = false;
+        this.fragParseErrors = 0;
+        this.triedTsUrl = false;
 
         this.playM3U8();
 
@@ -208,8 +222,6 @@ export class PlayerService {
 
         const urlLower = url.toLowerCase();
 
-        // Live siempre usa HLS.js (Xtream sirve HLS sin extensión .m3u8)
-        // VOD solo usa HLS.js si la URL es explícitamente .m3u8
         const shouldUseHls = this.isVod
             ? urlLower.includes(".m3u8")
             : true;
@@ -219,14 +231,8 @@ export class PlayerService {
             console.log("Usando hls.js →", url);
 
             this.hls = new Hls({
-                // ✅ FIX: enableWorker false — los Web Workers son inestables
-                //         en browsers de Samsung Tizen y LG webOS
                 enableWorker: false,
-
-                // ✅ FIX: lowLatencyMode false — causa problemas con streams
-                //         estándar de Xtream que no son LL-HLS
                 lowLatencyMode: false,
-
                 liveDurationInfinity: true,
                 backBufferLength: 30,
                 maxBufferLength: 20,
@@ -237,15 +243,8 @@ export class PlayerService {
                 levelLoadingMaxRetry: 5,
                 fragLoadingTimeOut: 20000,
                 fragLoadingMaxRetry: 6,
-
-                // ✅ FIX: xhrSetup para agregar headers si el servidor
-                //         requiere credenciales o tiene problemas de CORS
-                // xhrSetup: (xhr) => {
-                //     xhr.withCredentials = false;
-                // },
             });
 
-            // ✅ FIX: loadSource ANTES de attachMedia (orden correcto)
             this.hls.loadSource(url);
             this.hls.attachMedia(this.video);
 
@@ -254,9 +253,7 @@ export class PlayerService {
                 const promise = this.video.play();
 
                 promise?.catch(() => {
-
                     console.warn("Autoplay bloqueado por el navegador");
-
                 });
 
             });
@@ -265,18 +262,46 @@ export class PlayerService {
 
                 console.warn("HLS ERROR", data.type, data.details, data.fatal);
 
+                // ✅ FIX: detectar fragParsingError repetido y cambiar a .ts directo
+                if (data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR && !this.isVod) {
+
+                    this.fragParseErrors++;
+
+                    console.warn(`fragParsingError #${this.fragParseErrors}/${this.maxFragParseErrors}`);
+
+                    if (this.fragParseErrors >= this.maxFragParseErrors && !this.triedTsUrl && this.currentChannel) {
+
+                        console.warn("Cambiando a stream .ts directo...");
+
+                        this.triedTsUrl = true;
+                        this.fragParseErrors = 0;
+                        this.destroyHls();
+                        this.currentUrl = "";
+
+                        // Intentar con .ts en vez de .m3u8
+                        const tsUrl = this.xtream.getLiveTsUrl(
+                            this.currentChannel.stream_id
+                        );
+
+                        window.setTimeout(() => {
+                            this.playUrl(tsUrl);
+                        }, 500);
+
+                        return;
+
+                    }
+
+                }
+
                 if (!data.fatal) return;
 
                 this.destroyHls();
                 this.currentUrl = "";
 
                 if (this.isVod) {
-                    // ✅ FIX: para VOD con error fatal, intentar reproducción directa
-                    //         en vez de ignorarlo silenciosamente
-                    console.warn("Error HLS fatal en VOD, intentando reproducción directa →", url);
-                    this.currentUrl = "";
 
-                    // Pequeño delay para que el video element se limpie
+                    console.warn("Error HLS fatal en VOD, intentando reproducción directa →", url);
+
                     window.setTimeout(() => {
                         this.video.src = url;
                         this.video.load();
@@ -296,8 +321,6 @@ export class PlayerService {
         }
 
         // Samsung Tizen / LG webOS / Safari: HLS nativo
-        // ✅ FIX: agregar check explícito para TV browsers que soportan HLS
-        //         pero canPlayType puede devolver "" en algunos modelos
         const canPlayHls =
             this.video.canPlayType("application/vnd.apple.mpegurl") !== "" ||
             this.video.canPlayType("application/x-mpegURL") !== "";
@@ -377,6 +400,8 @@ export class PlayerService {
 
             this.currentUrl = "";
             this.reconnecting = false;
+            this.fragParseErrors = 0;
+            this.triedTsUrl = false;
             this.playM3U8();
 
         }, delay);
@@ -396,6 +421,8 @@ export class PlayerService {
         this.currentUrl = "";
         this.reconnectAttempts = 0;
         this.isVod = false;
+        this.fragParseErrors = 0;
+        this.triedTsUrl = false;
 
         this.video.pause();
         this.video.removeAttribute("src");
