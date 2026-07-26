@@ -16,13 +16,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     const targetParam = req.query.url as string;
-
-    if (!targetParam) {
-        return res.status(400).send("Missing url");
-    }
+    if (!targetParam) return res.status(400).send("Missing url");
 
     const targetUrl = decodeURIComponent(targetParam);
-
     if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
         return res.status(400).send("Invalid URL");
     }
@@ -72,6 +68,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
             return res.status(200).send(rewritten);
         }
 
+        // ✅ FIX: usar arrayBuffer() en vez de pipeTo() — evita corrupción binaria
+        const buffer = await response.arrayBuffer();
+        const nodeBuffer = Buffer.from(buffer);
+
         const contentLength = response.headers.get("content-length");
         const contentRange = response.headers.get("content-range");
 
@@ -81,16 +81,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         if (contentLength) res.setHeader("Content-Length", contentLength);
         if (contentRange) res.setHeader("Content-Range", contentRange);
 
-        res.status(response.status);
-        response.body?.pipeTo(
-            new WritableStream({
-                write(chunk) { res.write(chunk); },
-                close() { res.end(); },
-            })
-        );
+        return res.status(response.status).send(nodeBuffer);
 
     } catch (error) {
         return res.status(502).send(`Proxy error: ${error}`);
     }
-
 }
