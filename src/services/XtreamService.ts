@@ -21,6 +21,27 @@ export class XtreamService {
 
     }
 
+    // =====================================================
+    // PROXY: redirige URLs HTTP por /api/proxy para evitar
+    // el bloqueo Mixed Content en páginas HTTPS (Vercel)
+    // =====================================================
+
+    private proxify(url: string): string {
+
+        // Si la URL ya es HTTPS no necesita proxy
+        if (url.startsWith("https://")) {
+            return url;
+        }
+
+        // Rutas relativas o ya proxificadas — sin cambios
+        if (!url.startsWith("http://")) {
+            return url;
+        }
+
+        return `/api/proxy?url=${encodeURIComponent(url)}`;
+
+    }
+
     public async login(
         host: string,
         username: string,
@@ -42,8 +63,12 @@ export class XtreamService {
 
         }
 
-        const url =
+        // ✅ FIX: la llamada a player_api.php también pasa por el proxy
+        //         para evitar Mixed Content en la autenticación
+        const rawUrl =
             `${host}/player_api.php?username=${encodeURIComponent(username)}&password=${encodeURIComponent(password)}`;
+
+        const url = this.proxify(rawUrl);
 
         try {
 
@@ -73,7 +98,11 @@ export class XtreamService {
 
     private buildUrl(action: string): string {
 
-        return `${this.host}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}&action=${action}`;
+        const rawUrl =
+            `${this.host}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}&action=${action}`;
+
+        // ✅ FIX: todas las llamadas a la API también pasan por el proxy
+        return this.proxify(rawUrl);
 
     }
 
@@ -160,18 +189,20 @@ export class XtreamService {
     }
 
     // =====================================================
-    // STREAM URLS
+    // STREAM URLS — todas pasan por el proxy automáticamente
     // =====================================================
 
     public getLiveStreamUrl(streamId: number): string {
 
-        return `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.m3u8`;
+        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.m3u8`;
+        return this.proxify(raw);
 
     }
 
     public getLiveTsUrl(streamId: number): string {
 
-        return `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
+        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
+        return this.proxify(raw);
 
     }
 
@@ -180,7 +211,8 @@ export class XtreamService {
         extension: string
     ): string {
 
-        return `${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
+        const raw = `${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
+        return this.proxify(raw);
 
     }
 
@@ -189,7 +221,8 @@ export class XtreamService {
         extension: string
     ): string {
 
-        return `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
+        const raw = `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
+        return this.proxify(raw);
 
     }
 
