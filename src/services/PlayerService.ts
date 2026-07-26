@@ -51,7 +51,8 @@ export class PlayerService {
 
         this.video.addEventListener("error", () => {
 
-            console.log("Video Error");
+            const err = this.video.error;
+            console.warn("Video Error", err?.code, err?.message);
 
             if (!this.isVod) {
                 this.reconnect();
@@ -207,7 +208,7 @@ export class PlayerService {
 
         const urlLower = url.toLowerCase();
 
-        // ✅ FIX: live siempre usa HLS.js (Xtream sirve HLS sin extensión .m3u8)
+        // Live siempre usa HLS.js (Xtream sirve HLS sin extensión .m3u8)
         // VOD solo usa HLS.js si la URL es explícitamente .m3u8
         const shouldUseHls = this.isVod
             ? urlLower.includes(".m3u8")
@@ -218,21 +219,33 @@ export class PlayerService {
             console.log("Usando hls.js →", url);
 
             this.hls = new Hls({
-                enableWorker: true,
-                lowLatencyMode: true,
+                // ✅ FIX: enableWorker false — los Web Workers son inestables
+                //         en browsers de Samsung Tizen y LG webOS
+                enableWorker: false,
+
+                // ✅ FIX: lowLatencyMode false — causa problemas con streams
+                //         estándar de Xtream que no son LL-HLS
+                lowLatencyMode: false,
+
                 liveDurationInfinity: true,
-                backBufferLength: 90,
-                maxBufferLength: 30,
-                maxMaxBufferLength: 120,
+                backBufferLength: 30,
+                maxBufferLength: 20,
+                maxMaxBufferLength: 60,
                 manifestLoadingTimeOut: 10000,
                 manifestLoadingMaxRetry: 5,
                 levelLoadingTimeOut: 10000,
                 levelLoadingMaxRetry: 5,
                 fragLoadingTimeOut: 20000,
-                fragLoadingMaxRetry: 6
+                fragLoadingMaxRetry: 6,
+
+                // ✅ FIX: xhrSetup para agregar headers si el servidor
+                //         requiere credenciales o tiene problemas de CORS
+                // xhrSetup: (xhr) => {
+                //     xhr.withCredentials = false;
+                // },
             });
 
-            this.hls.stopLoad();
+            // ✅ FIX: loadSource ANTES de attachMedia (orden correcto)
             this.hls.loadSource(url);
             this.hls.attachMedia(this.video);
 
@@ -257,8 +270,24 @@ export class PlayerService {
                 this.destroyHls();
                 this.currentUrl = "";
 
-                // ✅ FIX: reconectar en vez de intentar .ts (navegador no soporta TS)
-                this.reconnect();
+                if (this.isVod) {
+                    // ✅ FIX: para VOD con error fatal, intentar reproducción directa
+                    //         en vez de ignorarlo silenciosamente
+                    console.warn("Error HLS fatal en VOD, intentando reproducción directa →", url);
+                    this.currentUrl = "";
+
+                    // Pequeño delay para que el video element se limpie
+                    window.setTimeout(() => {
+                        this.video.src = url;
+                        this.video.load();
+                        this.video.play().catch(() => {
+                            console.error("No se pudo reproducir el VOD.");
+                        });
+                    }, 300);
+
+                } else {
+                    this.reconnect();
+                }
 
             });
 
@@ -266,10 +295,16 @@ export class PlayerService {
 
         }
 
-        // Safari: HLS nativo
-        if (this.video.canPlayType("application/vnd.apple.mpegurl")) {
+        // Samsung Tizen / LG webOS / Safari: HLS nativo
+        // ✅ FIX: agregar check explícito para TV browsers que soportan HLS
+        //         pero canPlayType puede devolver "" en algunos modelos
+        const canPlayHls =
+            this.video.canPlayType("application/vnd.apple.mpegurl") !== "" ||
+            this.video.canPlayType("application/x-mpegURL") !== "";
 
-            console.log("Usando HLS nativo (Safari) →", url);
+        if (canPlayHls) {
+
+            console.log("Usando HLS nativo (Samsung/LG/Safari) →", url);
 
             this.video.src = url;
             this.video.load();
@@ -278,9 +313,12 @@ export class PlayerService {
 
             promise?.catch(() => {
 
-                console.warn("Autoplay bloqueado por Safari");
+                console.warn("Autoplay bloqueado");
                 this.currentUrl = "";
-                this.reconnect();
+
+                if (!this.isVod) {
+                    this.reconnect();
+                }
 
             });
 
@@ -288,7 +326,7 @@ export class PlayerService {
 
         }
 
-        // Reproducción directa (MP4, etc.)
+        // Reproducción directa (MP4, TS, etc.)
         console.log("Reproducción directa →", url);
 
         this.video.src = url;

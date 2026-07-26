@@ -158,18 +158,19 @@ export class Player {
 
             this.player = new PlayerService(video, DataManager.getXtream());
 
-            this.player.play(Navigation.selectedMovie as any);
+            // ✅ FIX: usar playMovie() en vez de play() — play() es solo para canales live
+            this.player.playMovie(Navigation.selectedMovie);
 
         } else if (type === "series") {
 
-    title.textContent = Navigation.selectedSeries?.name ?? "Serie";
+            title.textContent = Navigation.selectedSeries?.name ?? "Serie";
 
-    this.player = new PlayerService(video, DataManager.getXtream());
+            this.player = new PlayerService(video, DataManager.getXtream());
 
-    this.player.playSeriesEpisode(
-        Navigation.episodeStreamId,
-        Navigation.episodeExtension
-    );
+            this.player.playSeriesEpisode(
+                Navigation.episodeStreamId,
+                Navigation.episodeExtension
+            );
 
         } else if (Navigation.selectedChannel) {
 
