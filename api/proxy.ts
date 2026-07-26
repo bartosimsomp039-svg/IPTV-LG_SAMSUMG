@@ -68,3 +68,4 @@ export default async function handler(request: Request): Promise<Response> {
         return new Response("Proxy error: " + error, { status: 502, headers: corsHeaders });
     }
 }
+
