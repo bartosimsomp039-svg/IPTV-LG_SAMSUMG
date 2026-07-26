@@ -1,7 +1,8 @@
 // api/proxy.ts
 
 export const config = {
-    runtime: "edge",
+    runtime: "nodejs",
+    maxDuration: 30,
 };
 
 export default async function handler(request: Request): Promise<Response> {
