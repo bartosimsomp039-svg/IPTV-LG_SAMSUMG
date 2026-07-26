@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/proxy.ts": {
+      "maxDuration": 30
+    },
+    "api/xtream.ts": {
+      "maxDuration": 15
+    }
+  }
+}
