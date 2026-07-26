@@ -47,6 +47,44 @@
     border-radius: 2px;
 }
 
+/* Contenedor general de categorías */
+.live-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 36px;
+}
+
+/* Sección de una categoría */
+.category-section {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+/* Título de cada categoría */
+.category-title {
+    color: white;
+    font-size: 18px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #2a2a2a;
+}
+
+.category-title::before {
+    content: "";
+    display: inline-block;
+    width: 3px;
+    height: 18px;
+    background: #8d4dff;
+    border-radius: 2px;
+    flex-shrink: 0;
+}
+
+/* Grid de canales dentro de cada categoría */
 .channel-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));

@@ -26,7 +26,7 @@ export class Live {
 
         <h1 id="categoryTitle">📺 LIVE TV</h1>
 
-        <div id="liveChannels" class="channel-grid"></div>
+        <div id="liveChannels" class="live-categories"></div>
 
     </div>
 
@@ -57,29 +57,68 @@ export class Live {
         if (!container) return;
 
         const channels = Navigation.categoryId === 0
-    ? DataManager.liveChannels
-    : DataManager.liveChannels.filter(
-        channel => Number(channel.category_id) === Navigation.categoryId
-    );
+            ? DataManager.liveChannels
+            : DataManager.liveChannels.filter(
+                channel => Number(channel.category_id) === Navigation.categoryId
+            );
 
-        let html = "";
+        if (Navigation.categoryId === 0) {
+            // Agrupar por categoría cuando se muestran todos
+            const grouped = new Map<string, typeof channels>();
 
-        channels.forEach(channel => {
-            html += new ChannelCard(channel).render();
-        });
-
-        container.innerHTML = html;
-
-        const cards = container.querySelectorAll<HTMLElement>(".channel-card");
-
-        cards.forEach((card, index) => {
-
-            card.addEventListener("click", () => {
-                Navigation.selectedChannel = channels[index];
-                Router.getInstance().navigate("player");
+            channels.forEach(channel => {
+                const catName = (channel as any).category_name || `Categoría ${channel.category_id}`;
+                if (!grouped.has(catName)) {
+                    grouped.set(catName, []);
+                }
+                grouped.get(catName)!.push(channel);
             });
 
-        });
+            let html = "";
+
+            grouped.forEach((groupChannels, catName) => {
+                html += `
+                    <div class="category-section">
+                        <h2 class="category-title">${catName}</h2>
+                        <div class="channel-grid">
+                            ${groupChannels.map(ch => new ChannelCard(ch).render()).join("")}
+                        </div>
+                    </div>
+                `;
+            });
+
+            container.innerHTML = html;
+
+            // Registrar clicks con índice global
+            const allCardEls = container.querySelectorAll<HTMLElement>(".channel-card");
+            const flatChannels = Array.from(grouped.values()).flat();
+
+            allCardEls.forEach((card, index) => {
+                card.addEventListener("click", () => {
+                    Navigation.selectedChannel = flatChannels[index];
+                    Router.getInstance().navigate("player");
+                });
+            });
+
+        } else {
+            // Una sola categoría — grid normal
+            let html = `<div class="channel-grid">`;
+            channels.forEach(channel => {
+                html += new ChannelCard(channel).render();
+            });
+            html += `</div>`;
+
+            container.innerHTML = html;
+
+            const cards = container.querySelectorAll<HTMLElement>(".channel-card");
+
+            cards.forEach((card, index) => {
+                card.addEventListener("click", () => {
+                    Navigation.selectedChannel = channels[index];
+                    Router.getInstance().navigate("player");
+                });
+            });
+        }
 
         // Navegación con control remoto
         const focus = new FocusManager();
