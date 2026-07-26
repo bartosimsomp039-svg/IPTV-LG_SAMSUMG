@@ -4,42 +4,51 @@ export const config = {
 
 export default async function handler(request: Request): Promise<Response> {
 
-    const url = new URL(request.url);
-    const targetParam = url.searchParams.get("url");
+    const corsHeaders = {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    };
 
     if (request.method === "OPTIONS") {
-        return new Response(null, {
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "GET, OPTIONS",
-                "Access-Control-Allow-Headers": "*",
-            },
-        });
+        return new Response(null, { headers: corsHeaders });
     }
 
-    if (!targetParam) {
-        return new Response("Missing url", { status: 400 });
+    // Leer la URL del body JSON (así lo envía ApiClient)
+    let targetUrl: string | null = null;
+
+    try {
+        const body = await request.json() as { url?: string };
+        targetUrl = body.url ?? null;
+    } catch {
+        // fallback: leer de query params (GET)
+        const url = new URL(request.url);
+        targetUrl = url.searchParams.get("url");
     }
 
-    const targetUrl = decodeURIComponent(targetParam);
+    if (!targetUrl) {
+        return new Response("Missing url", { status: 400, headers: corsHeaders });
+    }
 
-    if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-        return new Response("Invalid URL", { status: 400 });
+    const decoded = decodeURIComponent(targetUrl);
+
+    if (!decoded.startsWith("http://") && !decoded.startsWith("https://")) {
+        return new Response("Invalid URL", { status: 400, headers: corsHeaders });
     }
 
     try {
 
-        const response = await fetch(targetUrl, {
+        const response = await fetch(decoded, {
             headers: { "User-Agent": "Mozilla/5.0 (SMART-TV)" },
         });
 
         const contentType = response.headers.get("content-type") ?? "application/octet-stream";
-        const isM3U8 = contentType.includes("mpegurl") || targetUrl.toLowerCase().includes(".m3u8");
+        const isM3U8 = contentType.includes("mpegurl") || decoded.toLowerCase().includes(".m3u8");
 
         if (isM3U8) {
 
             const text = await response.text();
-            const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
+            const baseUrl = decoded.substring(0, decoded.lastIndexOf("/") + 1);
 
             const rewritten = text.split("\n").map((line) => {
                 const trimmed = line.trim();
@@ -53,7 +62,7 @@ export default async function handler(request: Request): Promise<Response> {
             return new Response(rewritten, {
                 headers: {
                     "Content-Type": "application/vnd.apple.mpegurl",
-                    "Access-Control-Allow-Origin": "*",
+                    ...corsHeaders,
                     "Cache-Control": "no-cache",
                 },
             });
@@ -64,13 +73,13 @@ export default async function handler(request: Request): Promise<Response> {
             status: response.status,
             headers: {
                 "Content-Type": contentType,
-                "Access-Control-Allow-Origin": "*",
+                ...corsHeaders,
                 "Cache-Control": "no-cache",
             },
         });
 
-    } catch (error) {
-        return new Response("Proxy error", { status: 502 });
+    } catch {
+        return new Response("Proxy error", { status: 502, headers: corsHeaders });
     }
 
 }
