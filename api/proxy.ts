@@ -1,12 +1,10 @@
 // api/proxy.ts
-// Node.js runtime — sin límite de tamaño, streaming real de segmentos de video
 
-import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { request as httpRequest } from "http";
-import { request as httpsRequest } from "https";
-import { URL } from "url";
+export const config = {
+    runtime: "edge",
+};
 
-export default async function handler(req: VercelRequest, res: VercelResponse) {
+export default async function handler(request: Request): Promise<Response> {
 
     const corsHeaders = {
         "Access-Control-Allow-Origin": "*",
@@ -15,135 +13,106 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         "Access-Control-Expose-Headers": "Content-Range, Content-Length, Accept-Ranges",
     };
 
-    // CORS preflight
-    if (req.method === "OPTIONS") {
-        res.writeHead(204, corsHeaders);
-        res.end();
-        return;
+    if (request.method === "OPTIONS") {
+        return new Response(null, { headers: corsHeaders });
     }
 
-    const targetParam = req.query["url"] as string | undefined;
+    const url = new URL(request.url);
+    const targetParam = url.searchParams.get("url");
 
     if (!targetParam) {
-        res.status(400).send("Missing url parameter");
-        return;
+        return new Response("Missing url", { status: 400, headers: corsHeaders });
     }
 
     const targetUrl = decodeURIComponent(targetParam);
 
     if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-        res.status(400).send("Invalid URL");
-        return;
+        return new Response("Invalid URL", { status: 400, headers: corsHeaders });
     }
 
-    let parsedUrl: URL;
-    try {
-        parsedUrl = new URL(targetUrl);
-    } catch {
-        res.status(400).send("Malformed URL");
-        return;
-    }
-
-    const isHttps = parsedUrl.protocol === "https:";
-    const requester = isHttps ? httpsRequest : httpRequest;
-
-    const options = {
-        hostname: parsedUrl.hostname,
-        port: parsedUrl.port || (isHttps ? 443 : 80),
-        path: parsedUrl.pathname + parsedUrl.search,
-        method: "GET",
-        headers: {
-            "User-Agent": "Mozilla/5.0 (SMART-TV) AppleWebKit/538.1",
-            "Accept": "*/*",
-            ...(req.headers["range"] ? { "Range": req.headers["range"] } : {}),
-        },
+    const upstreamHeaders: Record<string, string> = {
+        "User-Agent": "Mozilla/5.0 (SMART-TV) AppleWebKit/538.1",
+        "Accept": "*/*",
+        // Crítico: pedir sin compresión para que los segmentos .ts lleguen sin comprimir
+        "Accept-Encoding": "identity",
     };
 
-    const isM3U8 =
-        targetUrl.toLowerCase().includes(".m3u8") ||
-        targetUrl.toLowerCase().includes("mpegurl");
+    const rangeHeader = request.headers.get("range");
+    if (rangeHeader) {
+        upstreamHeaders["Range"] = rangeHeader;
+    }
 
-    return new Promise<void>((resolve) => {
+    try {
 
-        const upstreamReq = requester(options, (upstreamRes) => {
+        const response = await fetch(targetUrl, { headers: upstreamHeaders });
 
-            const contentType =
-                upstreamRes.headers["content-type"] ?? "application/octet-stream";
+        const contentType = response.headers.get("content-type") ?? "application/octet-stream";
+        const isM3U8 =
+            contentType.includes("mpegurl") ||
+            targetUrl.toLowerCase().includes(".m3u8");
 
-            const responseHeaders: Record<string, string> = {
-                ...corsHeaders,
-                "Cache-Control": "no-cache",
-            };
+        if (isM3U8) {
 
-            // Reenviar headers de streaming
-            if (upstreamRes.headers["content-length"]) {
-                responseHeaders["Content-Length"] = upstreamRes.headers["content-length"];
-            }
-            if (upstreamRes.headers["content-range"]) {
-                responseHeaders["Content-Range"] = upstreamRes.headers["content-range"];
-            }
-            responseHeaders["Accept-Ranges"] =
-                upstreamRes.headers["accept-ranges"] ?? "bytes";
+            const text = await response.text();
 
-            // Manifest HLS — reescribir URLs
-            if (isM3U8 || (contentType as string).includes("mpegurl")) {
-
-                const chunks: Buffer[] = [];
-
-                upstreamRes.on("data", (chunk: Buffer) => chunks.push(chunk));
-
-                upstreamRes.on("end", () => {
-
-                    const text = Buffer.concat(chunks).toString("utf-8");
-                    const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
-
-                    const rewritten = text
-                        .split("\n")
-                        .map((line) => {
-                            const trimmed = line.trim();
-                            if (trimmed.startsWith("#") || trimmed === "") return line;
-                            const abs =
-                                trimmed.startsWith("http://") || trimmed.startsWith("https://")
-                                    ? trimmed
-                                    : baseUrl + trimmed;
-                            return `/api/proxy?url=${encodeURIComponent(abs)}`;
-                        })
-                        .join("\n");
-
-                    res.writeHead(200, {
-                        ...responseHeaders,
-                        "Content-Type": "application/vnd.apple.mpegurl",
-                    });
-                    res.end(rewritten);
-                    resolve();
-
+            // Verificar que realmente es un M3U8 válido
+            if (!text.includes("#EXTM3U") && !text.includes("#EXT-X-")) {
+                // El servidor devolvió algo que no es M3U8 (error HTML, etc.)
+                return new Response(`Invalid M3U8: ${text.substring(0, 200)}`, {
+                    status: 502,
+                    headers: corsHeaders,
                 });
-
-            } else {
-
-                // Segmentos de video — pipe directo sin bufferear
-                res.writeHead(upstreamRes.statusCode ?? 200, {
-                    ...responseHeaders,
-                    "Content-Type": contentType as string,
-                });
-
-                upstreamRes.pipe(res);
-                upstreamRes.on("end", resolve);
-
             }
 
+            const baseUrl = targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
+
+            const rewritten = text
+                .split("\n")
+                .map((line) => {
+                    const trimmed = line.trim();
+                    if (trimmed.startsWith("#") || trimmed === "") return line;
+
+                    const absoluteUrl =
+                        trimmed.startsWith("http://") || trimmed.startsWith("https://")
+                            ? trimmed
+                            : baseUrl + trimmed;
+
+                    return `/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+                })
+                .join("\n");
+
+            return new Response(rewritten, {
+                headers: {
+                    "Content-Type": "application/vnd.apple.mpegurl",
+                    ...corsHeaders,
+                    "Cache-Control": "no-cache, no-store",
+                },
+            });
+
+        }
+
+        // Segmentos de video — reenviar con headers de streaming
+        const responseHeaders: Record<string, string> = {
+            "Content-Type": contentType,
+            ...corsHeaders,
+            "Cache-Control": "no-cache",
+        };
+
+        const contentLength = response.headers.get("content-length");
+        const contentRange = response.headers.get("content-range");
+        const acceptRanges = response.headers.get("accept-ranges");
+
+        if (contentLength) responseHeaders["Content-Length"] = contentLength;
+        if (contentRange) responseHeaders["Content-Range"] = contentRange;
+        responseHeaders["Accept-Ranges"] = acceptRanges ?? "bytes";
+
+        return new Response(response.body, {
+            status: response.status,
+            headers: responseHeaders,
         });
 
-        upstreamReq.on("error", (err) => {
-            console.error("Proxy error:", err);
-            if (!res.headersSent) {
-                res.status(502).send("Proxy error");
-            }
-            resolve();
-        });
-
-        upstreamReq.end();
-
-    });
+    } catch (error) {
+        return new Response(`Proxy error: ${error}`, { status: 502, headers: corsHeaders });
+    }
 
 }
