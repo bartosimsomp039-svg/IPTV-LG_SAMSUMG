@@ -51,7 +51,7 @@ export class XtreamService {
     ): Promise<boolean> {
 
         this.lastLoginError = "";
-        host = host.trim();
+        host = host.trim().replace(/\s+/g, "");
 
         if (!host.startsWith("http://") &&
             !host.startsWith("https://")) {
@@ -60,10 +60,27 @@ export class XtreamService {
 
         }
 
-        if (host.endsWith("/")) {
+        // Accept both a base host and a pasted Xtream API URL. Remove the
+        // path/query/hash because the API path and credentials are added below.
+        // This also prevents a pasted player_api.php URL from becoming a 404.
+        try {
+            const parsedHost = new URL(host);
+            const apiPathIndex = parsedHost.pathname.search(
+                /\/(?:player_api|panel_api)\.php/i
+            );
 
-            host = host.slice(0, -1);
+            if (apiPathIndex >= 0) {
+                parsedHost.pathname = parsedHost.pathname.slice(0, apiPathIndex);
+            }
 
+            parsedHost.search = "";
+            parsedHost.hash = "";
+            host = parsedHost.toString().replace(/\/$/, "");
+        } catch {
+            host = host
+                .replace(/\/(?:player_api|panel_api)\.php.*$/i, "")
+                .replace(/[?#].*$/, "")
+                .replace(/\/$/, "");
         }
 
         const url =
