@@ -70,7 +70,15 @@ export class XtreamService {
 
             const data = await this.api.get(url);
 
-            if (!data || !data.user_info) {
+            const userInfo = data?.user_info;
+
+            // Xtream providers often return HTTP 200 even when credentials
+            // are rejected. Check the auth fields instead of trusting status.
+            if (
+                !userInfo ||
+                (userInfo.auth !== undefined && Number(userInfo.auth) !== 1) ||
+                String(userInfo.status ?? "").toLowerCase() === "disabled"
+            ) {
 
                 return false;
 

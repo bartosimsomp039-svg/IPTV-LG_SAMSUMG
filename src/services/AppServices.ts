@@ -24,7 +24,7 @@ export class AppServices {
 
     public static isLogged(): boolean {
 
-        return this.xtream !== null;
+        return this.xtream?.isLogged() ?? false;
 
     }
 

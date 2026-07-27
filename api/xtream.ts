@@ -35,7 +35,14 @@ export default async function handler(
     return;
   }
 
-  const decoded = decodeURIComponent(targetUrl);
+  let decoded: string;
+  try {
+    // The POST body contains the encoded username/password query values.
+    decoded = decodeURIComponent(targetUrl);
+  } catch {
+    res.status(400).json({ error: "Malformed URL" });
+    return;
+  }
 
   if (!decoded.startsWith("http://") && !decoded.startsWith("https://")) {
     res.status(400).json({ error: "Invalid URL" });
@@ -51,15 +58,31 @@ export default async function handler(
       signal: AbortSignal.timeout(12000),
     });
 
-    const ct = upstream.headers.get("content-type") ?? "application/json";
-    const data = await upstream.text();
+    const data = (await upstream.text()).trim();
 
-    res.writeHead(upstream.status, {
-      "Content-Type": ct,
+    let parsed: unknown;
+    try {
+      parsed = data ? JSON.parse(data.replace(/^\uFEFF/, "")) : null;
+    } catch {
+      // Normalize plain-text provider errors to JSON so the frontend never
+      // crashes while parsing the proxy response.
+      const lower = data.toLowerCase();
+      const isAuthError =
+        lower.includes("invalid auth") ||
+        lower.includes("invalid credential") ||
+        lower.includes("unauthorized");
+
+      res.status(isAuthError ? 401 : 502).json({
+        error: data || `Xtream server returned HTTP ${upstream.status}`,
+      });
+      return;
+    }
+
+    res.status(upstream.status).set({
+      "Content-Type": "application/json; charset=utf-8",
       "Cache-Control": "no-cache",
       ...CORS,
-    });
-    res.end(data);
+    }).json(parsed);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     res.status(502).json({ error: "Proxy error: " + msg });
