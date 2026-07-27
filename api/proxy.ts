@@ -1,4 +1,4 @@
-﻿export const config = { runtime: "edge" };
+﻿export const config = { runtime: "nodejs", preferredRegion: ["iad1"] };
 
 export default async function handler(request: Request): Promise<Response> {
     const corsHeaders = {
@@ -17,10 +17,14 @@ export default async function handler(request: Request): Promise<Response> {
     if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://"))
         return new Response("Invalid URL", { status: 400, headers: corsHeaders });
 
+    const parsedTarget = new URL(targetUrl);
+
     const upstreamHeaders: Record<string, string> = {
         "User-Agent": "Mozilla/5.0 (SMART-TV) AppleWebKit/538.1",
         "Accept": "*/*",
         "Accept-Encoding": "identity",
+        "Referer": parsedTarget.origin + "/",
+        "Origin": parsedTarget.origin,
     };
     const rangeHeader = request.headers.get("range");
     if (rangeHeader) upstreamHeaders["Range"] = rangeHeader;
