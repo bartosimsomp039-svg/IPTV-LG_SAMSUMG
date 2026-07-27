@@ -17,7 +17,8 @@
     "axios": "^1.18.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "hls.js": "^1.6.16"
+    "hls.js": "^1.6.16",
+    "mpegts.js": "^1.8.0"
   },
   "description": "",
   "main": "index.js",

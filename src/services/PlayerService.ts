@@ -1,4 +1,5 @@
 ﻿import Hls from "hls.js";
+import mpegts from "mpegts.js";
 
 import type { Channel } from "../models/Channel";
 import type { Movie } from "../models/Movie";
@@ -15,6 +16,7 @@ export class PlayerService {
     private reconnecting = false;
     private currentUrl = "";
     private hls: Hls | null = null;
+    private mpegtsPlayer: mpegts.Player | null = null;
     private isVod = false;
     private fragParseErrors = 0;
     private readonly maxFragParseErrors = 3;
@@ -108,17 +110,19 @@ export class PlayerService {
 
     private destroyHls(): void {
         if (this.hls === null) return;
-        try {
-            this.hls.stopLoad();
-            this.hls.detachMedia();
-            this.hls.destroy();
-        } catch {}
+        try { this.hls.stopLoad(); this.hls.detachMedia(); this.hls.destroy(); } catch {}
         this.hls = null;
+    }
+
+    private destroyMpegts(): void {
+        if (this.mpegtsPlayer === null) return;
+        try { this.mpegtsPlayer.pause(); this.mpegtsPlayer.unload(); this.mpegtsPlayer.detachMediaElement(); this.mpegtsPlayer.destroy(); } catch {}
+        this.mpegtsPlayer = null;
     }
 
     private switchToTsDirect(): void {
         if (this.triedTsUrl || !this.currentChannel) return;
-        console.warn("Cambiando a stream .ts directo (fallback por 403/fragLoadError)...");
+        console.warn("Cambiando a stream .ts directo (fallback por 403)...");
         this.triedTsUrl = true;
         this.fragParseErrors = 0;
         this.destroyHls();
@@ -131,13 +135,38 @@ export class PlayerService {
         if (this.currentUrl === url) return;
         this.currentUrl = url;
         this.destroyHls();
+        this.destroyMpegts();
         this.video.pause();
         this.video.removeAttribute("src");
         this.video.load();
 
         const urlLower = url.toLowerCase();
-        const shouldUseHls = this.isVod ? urlLower.includes(".m3u8") : !urlLower.endsWith(".ts");
+        const isTsStream = urlLower.endsWith(".ts") || urlLower.includes("%2f") && urlLower.endsWith(".ts");
+        const shouldUseHls = this.isVod ? urlLower.includes(".m3u8") : !isTsStream;
 
+        // ── mpegts.js para stream .ts directo ──
+        if (isTsStream && mpegts.isSupported()) {
+            console.log("Usando mpegts.js →", url);
+            this.mpegtsPlayer = mpegts.createPlayer({
+                type: "mpegts",
+                isLive: true,
+                url: url,
+            }, {
+                enableWorker: false,
+                lazyLoadMaxDuration: 3 * 60,
+                seekType: "range",
+            });
+            this.mpegtsPlayer.attachMediaElement(this.video);
+            this.mpegtsPlayer.load();
+            this.mpegtsPlayer.on(mpegts.Events.ERROR, (errType, errDetail) => {
+                console.warn("mpegts ERROR", errType, errDetail);
+                if (!this.isVod) this.reconnect();
+            });
+            this.video.play()?.catch(() => console.warn("Autoplay bloqueado (mpegts)"));
+            return;
+        }
+
+        // ── hls.js ──
         if (Hls.isSupported() && shouldUseHls) {
             console.log("Usando hls.js →", url);
             this.hls = new Hls({
@@ -161,24 +190,19 @@ export class PlayerService {
             });
             this.hls.on(Hls.Events.ERROR, (_event, data) => {
                 console.warn("HLS ERROR", data.type, data.details, data.fatal);
-
                 if (!this.isVod) {
-                    // fragLoadError = 403 del servidor → cambiar a .ts directo inmediatamente
                     if (data.details === Hls.ErrorDetails.FRAG_LOAD_ERROR) {
                         this.switchToTsDirect();
                         return;
                     }
-                    // fragParsingError = datos corruptos → contar y cambiar a .ts tras N errores
                     if (data.details === Hls.ErrorDetails.FRAG_PARSING_ERROR) {
                         this.fragParseErrors++;
-                        console.warn(`fragParsingError #${this.fragParseErrors}/${this.maxFragParseErrors}`);
                         if (this.fragParseErrors >= this.maxFragParseErrors) {
                             this.switchToTsDirect();
                             return;
                         }
                     }
                 }
-
                 if (!data.fatal) return;
                 this.destroyHls();
                 this.currentUrl = "";
@@ -195,7 +219,7 @@ export class PlayerService {
             return;
         }
 
-        // Samsung Tizen / LG webOS / Safari: HLS nativo
+        // ── HLS nativo (Samsung/LG/Safari) ──
         const canPlayHls =
             this.video.canPlayType("application/vnd.apple.mpegurl") !== "" ||
             this.video.canPlayType("application/x-mpegURL") !== "";
@@ -211,7 +235,7 @@ export class PlayerService {
             return;
         }
 
-        // Reproducción directa (MP4, TS, etc.)
+        // ── Reproducción directa ──
         console.log("Reproducción directa →", url);
         this.video.src = url;
         this.video.load();
@@ -246,6 +270,7 @@ export class PlayerService {
     public stop(): void {
         if (this.reconnectTimer !== null) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
         this.destroyHls();
+        this.destroyMpegts();
         this.reconnecting = false;
         this.currentUrl = "";
         this.reconnectAttempts = 0;
@@ -261,6 +286,7 @@ export class PlayerService {
         this.stop();
         this.currentChannel = null;
         this.destroyHls();
+        this.destroyMpegts();
     }
 
 }
