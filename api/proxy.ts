@@ -1,4 +1,4 @@
-﻿export const config = { runtime: "nodejs", preferredRegion: ["iad1"] };
+﻿export const config = { runtime: "edge" };
 
 export default async function handler(request: Request): Promise<Response> {
     const corsHeaders = {
@@ -18,7 +18,6 @@ export default async function handler(request: Request): Promise<Response> {
         return new Response("Invalid URL", { status: 400, headers: corsHeaders });
 
     const parsedTarget = new URL(targetUrl);
-
     const upstreamHeaders: Record<string, string> = {
         "User-Agent": "Mozilla/5.0 (SMART-TV) AppleWebKit/538.1",
         "Accept": "*/*",
@@ -61,7 +60,11 @@ export default async function handler(request: Request): Promise<Response> {
             });
         }
 
-        const responseHeaders: Record<string, string> = { "Content-Type": "video/mp2t", "Cache-Control": "no-cache", ...corsHeaders };
+        const responseHeaders: Record<string, string> = {
+            "Content-Type": contentType.includes("image") ? contentType : "video/mp2t",
+            "Cache-Control": "no-cache",
+            ...corsHeaders
+        };
         const cl = response.headers.get("content-length");
         const cr = response.headers.get("content-range");
         if (cl) responseHeaders["Content-Length"] = cl;
