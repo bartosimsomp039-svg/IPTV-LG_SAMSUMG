@@ -15,6 +15,8 @@ export class XtreamService {
 
     private password = "";
 
+    private lastLoginError = "";
+
     constructor() {
 
         this.api = new ApiClient();
@@ -48,6 +50,7 @@ export class XtreamService {
         password: string
     ): Promise<boolean> {
 
+        this.lastLoginError = "";
         host = host.trim();
 
         if (!host.startsWith("http://") &&
@@ -92,7 +95,9 @@ export class XtreamService {
 
         } catch (error) {
 
-            console.error("Xtream Login Error:", error);
+            this.lastLoginError =
+                error instanceof Error ? error.message : String(error);
+            console.error("Xtream Login Error:", this.lastLoginError);
 
             return false;
 
@@ -284,11 +289,18 @@ export class XtreamService {
 
     }
 
+    public getLastLoginError(): string {
+
+        return this.lastLoginError;
+
+    }
+
     public logout(): void {
 
         this.host = "";
         this.username = "";
         this.password = "";
+        this.lastLoginError = "";
 
     }
 

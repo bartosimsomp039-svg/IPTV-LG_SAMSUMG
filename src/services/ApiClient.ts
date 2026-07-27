@@ -45,7 +45,11 @@ export class ApiClient {
                     ? data.error
                     : body || `HTTP ${response.status}`;
 
-            throw new ApiClientError(message, response.status, body);
+            throw new ApiClientError(
+                `${message} (HTTP ${response.status})`,
+                response.status,
+                body,
+            );
         }
 
         return data;

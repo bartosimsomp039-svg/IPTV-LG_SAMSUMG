@@ -35,13 +35,17 @@ export default async function handler(
     return;
   }
 
-  let decoded: string;
-  try {
-    // The POST body contains the encoded username/password query values.
-    decoded = decodeURIComponent(targetUrl);
-  } catch {
-    res.status(400).json({ error: "Malformed URL" });
-    return;
+  let decoded = targetUrl;
+  if (req.method !== "POST") {
+    try {
+      // Vercel already parses query parameters for GET requests. Decode only
+      // this legacy GET path; the POST body already contains the complete URL
+      // and decoding it again can corrupt encoded Xtream credentials.
+      decoded = decodeURIComponent(targetUrl);
+    } catch {
+      res.status(400).json({ error: "Malformed URL" });
+      return;
+    }
   }
 
   if (!decoded.startsWith("http://") && !decoded.startsWith("https://")) {
