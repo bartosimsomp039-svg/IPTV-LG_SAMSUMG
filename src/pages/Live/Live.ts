@@ -83,7 +83,30 @@ export class Live {
 
     backBtn?.addEventListener("click", goBack);
 
-    // ── Agrupar canales por categoría ────────────────────────
+    // ── Construir mapa category_id → category_name ───────────
+    // Intenta los nombres más comunes que usa DataManager
+    const dm = DataManager as any;
+    const rawCats: any[] =
+      dm.liveCategories ??
+      dm.categories ??
+      dm.liveCats ??
+      dm.channelCategories ??
+      [];
+
+    const catNameById = new Map<string, string>();
+    rawCats.forEach((cat: any) => {
+      const id = String(cat.category_id ?? cat.id ?? "");
+      const name: string = cat.category_name ?? cat.name ?? "";
+      if (id && name) catNameById.set(id, name);
+    });
+
+    // Función auxiliar: obtiene el nombre real de la categoría
+    const resolveCatName = (channel: any): string =>
+      channel.category_name ||                          // ya viene en el canal
+      catNameById.get(String(channel.category_id)) ||   // buscado en las categorías
+      String(channel.category_id);                       // último recurso: solo el ID
+
+    // ── Canales a mostrar ────────────────────────────────────
     const allChannels =
       Navigation.categoryId === 0
         ? DataManager.liveChannels
@@ -91,10 +114,10 @@ export class Live {
             (channel) => Number(channel.category_id) === Navigation.categoryId,
           );
 
+    // ── Agrupar por nombre de categoría ─────────────────────
     const grouped = new Map<string, typeof allChannels>();
     allChannels.forEach((channel) => {
-      const categoryName =
-        (channel as any).category_name || `Categoría ${channel.category_id}`;
+      const categoryName = resolveCatName(channel);
       if (!grouped.has(categoryName)) grouped.set(categoryName, []);
       grouped.get(categoryName)!.push(channel);
     });
@@ -105,11 +128,8 @@ export class Live {
     // ── Renderizar sidebar ───────────────────────────────────
     const renderSidebar = (): void => {
       let html = `
-        <div
-          class="sidebar-item ${activeCategory === "TODO" ? "active" : ""}"
-          data-category="TODO"
-          tabindex="0"
-        >
+        <div class="sidebar-item ${activeCategory === "TODO" ? "active" : ""}"
+             data-category="TODO" tabindex="0">
           <span>TODO</span>
           <span class="sidebar-count">${allChannels.length}</span>
         </div>
@@ -117,11 +137,8 @@ export class Live {
 
       grouped.forEach((channels, categoryName) => {
         html += `
-          <div
-            class="sidebar-item ${activeCategory === categoryName ? "active" : ""}"
-            data-category="${categoryName}"
-            tabindex="0"
-          >
+          <div class="sidebar-item ${activeCategory === categoryName ? "active" : ""}"
+               data-category="${categoryName}" tabindex="0">
             <span>${categoryName}</span>
             <span class="sidebar-count">${channels.length}</span>
           </div>
@@ -130,9 +147,8 @@ export class Live {
 
       sidebar.innerHTML = html;
 
-      // Eventos de click en cada categoría
       sidebar.querySelectorAll<HTMLElement>(".sidebar-item").forEach((item) => {
-        item.addEventListener("click", () => {
+        const select = () => {
           activeCategory = item.dataset.category ?? "TODO";
           renderSidebar();
           renderChannels(search?.value ?? "");
@@ -140,12 +156,12 @@ export class Live {
             titleEl.textContent =
               activeCategory === "TODO" ? "TV EN VIVO" : activeCategory;
           }
-        });
+          // Scroll al inicio del panel al cambiar categoría
+          document.querySelector(".live-panel")?.scrollTo({ top: 0, behavior: "smooth" });
+        };
+        item.addEventListener("click", select);
         item.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            (item as HTMLElement).click();
-          }
+          if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(); }
         });
       });
     };
@@ -154,13 +170,11 @@ export class Live {
     const renderChannels = (query = ""): void => {
       const normalizedQuery = query.trim().toLocaleLowerCase();
 
-      // Canales según categoría activa
       const baseChannels =
         activeCategory === "TODO"
           ? allChannels
           : grouped.get(activeCategory) ?? [];
 
-      // Filtrar por búsqueda
       const visibleChannels = baseChannels.filter((channel) => {
         if (!normalizedQuery) return true;
         const searchable = [
@@ -175,17 +189,15 @@ export class Live {
         return searchable.includes(normalizedQuery);
       });
 
-      // Actualizar contador
       if (count) {
         count.textContent = `${visibleChannels.length} ${
           visibleChannels.length === 1 ? "canal disponible" : "canales disponibles"
         }`;
       }
 
-      // Estado vacío
       if (!visibleChannels.length) {
         container.innerHTML = `
-          <div class="live-empty" style="grid-column: 1 / -1;">
+          <div class="live-empty" style="grid-column:1/-1">
             <div class="empty-icon">&#9906;</div>
             <h2>No encontramos ese canal</h2>
             <p>Prueba con otro nombre o limpia la búsqueda para ver toda la programación.</p>
@@ -194,14 +206,11 @@ export class Live {
         return;
       }
 
-      // Renderizar cards
       container.innerHTML = visibleChannels
         .map((channel) => new ChannelCard(channel).render())
         .join("");
 
-      // Eventos de click en cada card
-      const cards = container.querySelectorAll<HTMLElement>(".channel-card");
-      cards.forEach((card, index) => {
+      container.querySelectorAll<HTMLElement>(".channel-card").forEach((card, index) => {
         card.setAttribute("tabindex", "0");
         card.addEventListener("click", () => {
           Navigation.selectedChannel = visibleChannels[index];
@@ -219,7 +228,6 @@ export class Live {
 
     // ── Búsqueda ─────────────────────────────────────────────
     search?.addEventListener("input", () => renderChannels(search.value));
-
     document.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -246,7 +254,6 @@ export class Live {
     renderSidebar();
     renderChannels();
 
-    // ── Focus TV ─────────────────────────────────────────────
     const focus = new FocusManager();
     focus.register(".channel-card");
     new Keyboard(focus, goBack);
