@@ -82,11 +82,10 @@ export default async function handler(
       return;
     }
 
-    res.status(upstream.status).set({
-      "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "no-cache",
-      ...CORS,
-    }).json(parsed);
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+res.setHeader("Cache-Control", "no-cache");
+Object.entries(CORS).forEach(([k, v]) => res.setHeader(k, v));
+res.status(upstream.status).json(parsed);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "Unknown error";
     res.status(502).json({ error: "Proxy error: " + msg });
