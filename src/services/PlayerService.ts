@@ -11,8 +11,11 @@ import { XtreamService } from "./XtreamService";
 //  nativamente — conviene saltarse hls.js/mpegts.js en esos casos.
 // ─────────────────────────────────────────────────────────────
 const Platform = {
+  // FIX 1: Cambiado /web0s/i → /web[o0]s/i
+  // Algunos LG tienen "WebOS" (letra O) y otros "Web0S" (cero).
+  // El regex anterior solo detectaba el cero, dejando fuera la letra O.
   isWebOS: (): boolean =>
-    /web0s/i.test(navigator.userAgent) || /netcast/i.test(navigator.userAgent),
+    /web[o0]s/i.test(navigator.userAgent) || /netcast/i.test(navigator.userAgent),
 
   isTizen: (): boolean => /tizen/i.test(navigator.userAgent),
 
@@ -399,6 +402,10 @@ export class PlayerService {
     this.isVod = false;
     this.fragParseErrors = 0;
     this.triedTsUrl = false;
+    // FIX 2: Limpiar currentChannel en stop().
+    // Sin esto, play(mismoCanal) después de stop() retorna inmediatamente
+    // porque stream_id coincide con el canal "actual" que nunca se limpió.
+    this.currentChannel = null;
     this.video.pause();
     this.video.removeAttribute("src");
     this.video.load();
