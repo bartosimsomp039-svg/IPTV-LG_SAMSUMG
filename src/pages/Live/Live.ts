@@ -16,43 +16,49 @@ export class Live {
 <div class="live">
     ${header.render()}
 
-    <main class="live-content">
-        <div class="live-topbar">
-            <button class="back-btn" id="backBtn" aria-label="Volver al inicio">
-                <span class="back-btn-icon">&#8592;</span>
-                <span>Volver</span>
-            </button>
+    <div class="live-topbar">
+        <button class="back-btn" id="backBtn" aria-label="Volver al inicio">
+            <span class="back-btn-icon">&#8592;</span>
+            <span>Volver</span>
+        </button>
 
-            <div class="live-heading">
-                <span class="live-eyebrow"><span class="live-dot"></span> EN DIRECTO</span>
-                <h1 id="categoryTitle">LIVE TV</h1>
-                <p id="channelCount" class="channel-count"></p>
-            </div>
-
-            <div class="live-status" aria-label="Estado del servicio">
-                <span class="status-signal"></span>
-                <span>Servicio activo</span>
-                <strong id="liveClock"></strong>
-            </div>
+        <div class="live-heading">
+            <span class="live-eyebrow"><span class="live-dot"></span> EN DIRECTO</span>
+            <h1 id="categoryTitle">TV EN VIVO</h1>
+            <p id="channelCount" class="channel-count"></p>
         </div>
 
-        <div class="live-toolbar">
-            <label class="search-box" for="channelSearch">
-                <span class="search-icon" aria-hidden="true">&#9906;</span>
-                <input
-                    id="channelSearch"
-                    type="search"
-                    autocomplete="off"
-                    placeholder="Buscar canal..."
-                    aria-label="Buscar canal"
-                />
-                <kbd>CTRL K</kbd>
-            </label>
-            <div class="view-label"><span class="view-label-dot"></span> Todos los canales</div>
+        <div class="live-status" aria-label="Estado del servicio">
+            <span class="status-signal"></span>
+            <span>Servicio activo</span>
+            <strong id="liveClock"></strong>
         </div>
+    </div>
 
-        <div id="liveChannels" class="live-categories"></div>
-    </main>
+    <div class="live-body">
+        <!-- Sidebar de categorías -->
+        <aside class="live-sidebar" id="liveSidebar" aria-label="Categorías"></aside>
+
+        <!-- Panel derecho: búsqueda + grid -->
+        <div class="live-panel">
+            <div class="live-toolbar">
+                <label class="search-box" for="channelSearch">
+                    <span class="search-icon" aria-hidden="true">&#9906;</span>
+                    <input
+                        id="channelSearch"
+                        type="search"
+                        autocomplete="off"
+                        placeholder="Buscar canal..."
+                        aria-label="Buscar canal"
+                    />
+                    <kbd>CTRL K</kbd>
+                </label>
+                <div class="view-label"><span class="view-label-dot"></span> Todos los canales</div>
+            </div>
+
+            <div id="liveChannels" class="channel-grid"></div>
+        </div>
+    </div>
 
     <div class="remote-hint" aria-hidden="true">
         <span><b>OK</b> Seleccionar</span>
@@ -67,21 +73,17 @@ export class Live {
     const goBack = () => Router.getInstance().navigate("home");
     const backBtn = document.getElementById("backBtn");
     const container = document.getElementById("liveChannels");
-    const search = document.getElementById(
-      "channelSearch",
-    ) as HTMLInputElement | null;
+    const sidebar = document.getElementById("liveSidebar");
+    const search = document.getElementById("channelSearch") as HTMLInputElement | null;
     const count = document.getElementById("channelCount");
     const clock = document.getElementById("liveClock");
+    const titleEl = document.getElementById("categoryTitle");
 
-    if (!container) return;
+    if (!container || !sidebar) return;
 
     backBtn?.addEventListener("click", goBack);
 
-    const title = document.getElementById("categoryTitle");
-    if (title) {
-      title.textContent = Navigation.categoryName || "LIVE TV";
-    }
-
+    // ── Agrupar canales por categoría ────────────────────────
     const allChannels =
       Navigation.categoryId === 0
         ? DataManager.liveChannels
@@ -97,58 +99,107 @@ export class Live {
       grouped.get(categoryName)!.push(channel);
     });
 
-    const renderChannels = (query = ""): void => {
-      const normalizedQuery = query.trim().toLocaleLowerCase();
-      const visibleGroups = new Map<string, typeof allChannels>();
+    // Categoría activa: "TODO" por defecto
+    let activeCategory = "TODO";
 
-      grouped.forEach((groupChannels, categoryName) => {
-        const matches = groupChannels.filter((channel) => {
-          const searchable = [
-            (channel as any).name,
-            (channel as any).title,
-            (channel as any).stream_name,
-            (channel as any).channel_name,
-          ]
-            .filter(Boolean)
-            .join(" ")
-            .toLocaleLowerCase();
-          return !normalizedQuery || searchable.includes(normalizedQuery);
-        });
-        if (matches.length) visibleGroups.set(categoryName, matches);
+    // ── Renderizar sidebar ───────────────────────────────────
+    const renderSidebar = (): void => {
+      let html = `
+        <div
+          class="sidebar-item ${activeCategory === "TODO" ? "active" : ""}"
+          data-category="TODO"
+          tabindex="0"
+        >
+          <span>TODO</span>
+          <span class="sidebar-count">${allChannels.length}</span>
+        </div>
+      `;
+
+      grouped.forEach((channels, categoryName) => {
+        html += `
+          <div
+            class="sidebar-item ${activeCategory === categoryName ? "active" : ""}"
+            data-category="${categoryName}"
+            tabindex="0"
+          >
+            <span>${categoryName}</span>
+            <span class="sidebar-count">${channels.length}</span>
+          </div>
+        `;
       });
 
-      const visibleChannels = Array.from(visibleGroups.values()).flat();
+      sidebar.innerHTML = html;
+
+      // Eventos de click en cada categoría
+      sidebar.querySelectorAll<HTMLElement>(".sidebar-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          activeCategory = item.dataset.category ?? "TODO";
+          renderSidebar();
+          renderChannels(search?.value ?? "");
+          if (titleEl) {
+            titleEl.textContent =
+              activeCategory === "TODO" ? "TV EN VIVO" : activeCategory;
+          }
+        });
+        item.addEventListener("keydown", (e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            (item as HTMLElement).click();
+          }
+        });
+      });
+    };
+
+    // ── Renderizar canales ───────────────────────────────────
+    const renderChannels = (query = ""): void => {
+      const normalizedQuery = query.trim().toLocaleLowerCase();
+
+      // Canales según categoría activa
+      const baseChannels =
+        activeCategory === "TODO"
+          ? allChannels
+          : grouped.get(activeCategory) ?? [];
+
+      // Filtrar por búsqueda
+      const visibleChannels = baseChannels.filter((channel) => {
+        if (!normalizedQuery) return true;
+        const searchable = [
+          (channel as any).name,
+          (channel as any).title,
+          (channel as any).stream_name,
+          (channel as any).channel_name,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLocaleLowerCase();
+        return searchable.includes(normalizedQuery);
+      });
+
+      // Actualizar contador
       if (count) {
-        count.textContent = `${visibleChannels.length} ${visibleChannels.length === 1 ? "canal disponible" : "canales disponibles"}`;
+        count.textContent = `${visibleChannels.length} ${
+          visibleChannels.length === 1 ? "canal disponible" : "canales disponibles"
+        }`;
       }
 
+      // Estado vacío
       if (!visibleChannels.length) {
         container.innerHTML = `
-                    <div class="live-empty">
-                        <div class="empty-icon">&#9906;</div>
-                        <h2>No encontramos ese canal</h2>
-                        <p>Prueba con otro nombre o limpia la búsqueda para ver toda la programación.</p>
-                    </div>
-                `;
+          <div class="live-empty" style="grid-column: 1 / -1;">
+            <div class="empty-icon">&#9906;</div>
+            <h2>No encontramos ese canal</h2>
+            <p>Prueba con otro nombre o limpia la búsqueda para ver toda la programación.</p>
+          </div>
+        `;
         return;
       }
 
-      let html = "";
-      visibleGroups.forEach((groupChannels, categoryName) => {
-        html += `
-                    <section class="category-section">
-                        <div class="category-header">
-                            <h2 class="category-title">${categoryName}</h2>
-                            <span class="category-count">${groupChannels.length} canales</span>
-                        </div>
-                        <div class="channel-grid">
-                            ${groupChannels.map((channel) => new ChannelCard(channel).render()).join("")}
-                        </div>
-                    </section>
-                `;
-      });
-      container.innerHTML = html;
+      // Renderizar cards
+      container.innerHTML = visibleChannels
+        .map((channel) => new ChannelCard(channel).render())
+        .join("");
 
+      // Eventos de click en cada card
       const cards = container.querySelectorAll<HTMLElement>(".channel-card");
       cards.forEach((card, index) => {
         card.setAttribute("tabindex", "0");
@@ -166,7 +217,9 @@ export class Live {
       });
     };
 
+    // ── Búsqueda ─────────────────────────────────────────────
     search?.addEventListener("input", () => renderChannels(search.value));
+
     document.addEventListener("keydown", (event) => {
       if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
         event.preventDefault();
@@ -174,6 +227,7 @@ export class Live {
       }
     });
 
+    // ── Reloj ────────────────────────────────────────────────
     const updateClock = (): void => {
       if (clock) {
         clock.textContent = new Intl.DateTimeFormat("es-MX", {
@@ -185,8 +239,14 @@ export class Live {
     updateClock();
     window.setInterval(updateClock, 30000);
 
+    // ── Render inicial ───────────────────────────────────────
+    if (titleEl) {
+      titleEl.textContent = Navigation.categoryName || "TV EN VIVO";
+    }
+    renderSidebar();
     renderChannels();
 
+    // ── Focus TV ─────────────────────────────────────────────
     const focus = new FocusManager();
     focus.register(".channel-card");
     new Keyboard(focus, goBack);
