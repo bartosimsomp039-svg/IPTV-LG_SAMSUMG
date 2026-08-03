@@ -75,6 +75,13 @@ export default async function handler(request: Request): Promise<Response> {
         );
       }
 
+      // FIX Samsung TV (file://): usar URLs absolutas en los segmentos.
+      // Con URLs relativas (/api/proxy?url=...) el browser de TV las resuelve
+      // contra file:// y quedan como file:///api/proxy?url=... → no cargan.
+      // Con la URL absoluta (https://iptv-lg-samsumg.vercel.app/api/proxy?url=...)
+      // funcionan desde cualquier origen (file://, https://, etc.).
+      const proxyOrigin = new URL(request.url).origin;
+
       const parsedBase = new URL(targetUrl);
       const baseUrl =
         targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
@@ -98,7 +105,8 @@ export default async function handler(request: Request): Promise<Response> {
             absoluteUrl = baseUrl + trimmed;
           }
 
-          return "/api/proxy?url=" + encodeURIComponent(absoluteUrl);
+          // URL absoluta → funciona en file:// y en cualquier origen
+          return `${proxyOrigin}/api/proxy?url=` + encodeURIComponent(absoluteUrl);
         })
         .join("\n");
 

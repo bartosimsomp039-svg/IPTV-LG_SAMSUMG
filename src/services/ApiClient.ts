@@ -14,9 +14,16 @@ export class ApiClient {
 
     public async get(url: string): Promise<any> {
 
-        const response = await fetch("/api/xtream", {
+        const API_URL =
+            window.location.protocol === "file:"
+                ? "https://iptv-lg-samsumg.vercel.app/api/xtream"
+                : "/api/xtream";
+
+        const response = await fetch(API_URL, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: {
+                "Content-Type": "application/json",
+            },
             body: JSON.stringify({ url }),
         });
 
