@@ -24,13 +24,19 @@ export class XtreamService {
     }
 
     // ── Proxifica streams (video HLS) ─────────────────────
-    private proxifyStream(url: string): string {
+private proxifyStream(url: string): string {
 
-        if (url.startsWith("https://")) return url;
-        if (!url.startsWith("http://")) return url;
-        return `/api/proxy?url=${encodeURIComponent(url)}`;
+    if (url.startsWith("https://")) return url;
+    if (!url.startsWith("http://")) return url;
 
-    }
+    const API_BASE =
+        window.location.protocol === "file:"
+            ? "https://iptv-lg-samsumg.vercel.app"
+            : "";
+
+    return `${API_BASE}/api/proxy?url=${encodeURIComponent(url)}`;
+
+}
 
     // ── Proxifica imágenes (logos, portadas, iconos) ──────
     // FIX Mixed Content: rutas http:// bloqueadas por el browser
