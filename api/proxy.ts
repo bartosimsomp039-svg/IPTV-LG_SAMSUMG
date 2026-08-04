@@ -59,6 +59,10 @@ export default async function handler(request: Request): Promise<Response> {
     if (isM3U8) {
       const text = await response.text();
 
+      console.log("=========== PLAYLIST ===========");
+      console.log(text);
+      console.log("================================");
+
       if (!text.includes("#EXTM3U") && !text.includes("#EXT-X-")) {
         // El servidor devolvió algo que no es un M3U8 válido.
         // Mostrar el contenido real para poder diagnosticarlo.
