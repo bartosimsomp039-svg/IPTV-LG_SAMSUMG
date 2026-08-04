@@ -25,9 +25,7 @@ export class XtreamService {
 
     // ── Proxifica streams (video HLS) ─────────────────────
 private proxifyStream(url: string): string {
-
-    if (url.startsWith("https://")) return url;
-    if (!url.startsWith("http://")) return url;
+  if (!url.startsWith("http://") && !url.startsWith("https://")) return url;
 
     const API_BASE =
         window.location.protocol === "file:"
