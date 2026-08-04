@@ -47,7 +47,10 @@ export default async function handler(request: Request): Promise<Response> {
   if (rangeHeader) upstreamHeaders["Range"] = rangeHeader;
 
   try {
-    const response = await fetch(targetUrl, { headers: upstreamHeaders });
+    const response = await fetch(targetUrl, {
+    headers: upstreamHeaders,
+    redirect: "follow",
+    cache: "no-store",});
 
     const contentType =
       response.headers.get("content-type") ?? "application/octet-stream";
@@ -112,14 +115,6 @@ export default async function handler(request: Request): Promise<Response> {
             absoluteUrl = new URL(trimmed, targetUrl).toString();
         } catch {
             return line;
-        }
-
-        // Segmentos de video: URL directa (sin proxy)
-        // El token está vinculado a la IP del usuario.
-        // El elemento <video> no aplica CORS, así que funciona directo.
-        const isSegment = /\.(ts|aac|mp4|m4s|fmp4)(\?|$)/i.test(absoluteUrl);
-        if (isSegment) {
-            return absoluteUrl;
         }
 
         return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
