@@ -100,6 +100,7 @@ export class PlayerService {
   private playM3U8(): void {
     if (!this.currentChannel) return;
     const url = this.xtream.getLiveStreamUrl(this.currentChannel.stream_id);
+    console.log("LIVE URL:", url);
     this.playUrl(url);
   }
 
@@ -368,6 +369,10 @@ export class PlayerService {
         `[TV ${Platform.isWebOS() ? "webOS" : "Tizen"}] Reproducción nativa →`,
         url,
       );
+      
+      console.log("TV URL =", url);
+console.log("Decoded =", decodeURIComponent(url));
+
       this.video.src = url;
       this.video.load();
       this.video.play()?.catch(() => {
