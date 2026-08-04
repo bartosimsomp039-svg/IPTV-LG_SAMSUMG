@@ -259,7 +259,7 @@ private proxifyImage(url: string | null | undefined): string {
 
     public getLiveStreamUrl(streamId: number): string {
 
-        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
+        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.m3u8`;
         return this.proxifyStream(raw);
 
     }
