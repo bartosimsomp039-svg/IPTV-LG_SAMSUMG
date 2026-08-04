@@ -16,9 +16,13 @@ const Platform = {
   // El regex anterior solo detectaba el cero, dejando fuera la letra O.
   isWebOS: (): boolean =>
     /web[o0]s/i.test(navigator.userAgent) ||
-    /netcast/i.test(navigator.userAgent),
+    /netcast/i.test(navigator.userAgent) ||
+    /LG\s*Browser/i.test(navigator.userAgent),
 
-  isTizen: (): boolean => /tizen/i.test(navigator.userAgent),
+  isTizen: (): boolean =>
+    /tizen/i.test(navigator.userAgent) ||
+  /SmartTV/i.test(navigator.userAgent) ||        // ← añadir
+    /SMART-TV/i.test(navigator.userAgent),
 
   isTV: (): boolean => Platform.isWebOS() || Platform.isTizen(),
 
@@ -36,6 +40,7 @@ export class PlayerService {
   private reconnectTimer: number | null = null;
   private reconnecting = false;
   private currentUrl = "";
+  private lastWorkingUrl = "";
   private hls: Hls | null = null;
   private mpegtsPlayer: mpegts.Player | null = null;
   private isVod = false;
@@ -48,6 +53,12 @@ export class PlayerService {
   // cancelamos y pasamos a hls.js para no dejar al usuario esperando.
   private nativeLiveTimer: number | null = null;
 
+  // ── WatchDog ─────────────────────────────────────────────
+private watchdogTimer: number | null = null;
+private lastVideoTime = 0;
+private freezeCounter = 0;
+private readonly maxFreezeChecks = 3;
+
   constructor(video: HTMLVideoElement, xtream: XtreamService) {
     this.video = video;
     this.xtream = xtream;
@@ -59,6 +70,8 @@ export class PlayerService {
       this.reconnecting = false;
       this.reconnectAttempts = 0;
       this.fragParseErrors = 0;
+      this.lastWorkingUrl = this.currentUrl;
+      this.startWatchDog();
     });
     this.video.addEventListener("error", () => {
       const err = this.video.error;
@@ -71,6 +84,14 @@ export class PlayerService {
     this.video.addEventListener("stalled", () => {
       if (!this.isVod) this.reconnect();
     });
+
+this.video.addEventListener("waiting", () => {
+
+    if (!this.isVod) {
+    console.warn("Video waiting...");
+    this.freezeCounter = 0;
+    }
+});
   }
 
   // ── LIVE ──────────────────────────────────────────
@@ -158,6 +179,71 @@ export class PlayerService {
     }
   }
 
+  // ─────────────────────────────────────────────────────────
+// WatchDog: detecta cuando el video queda congelado
+// aunque el navegador no dispare "error" ni "stalled".
+// ─────────────────────────────────────────────────────────
+private startWatchDog(): void {
+
+    this.stopWatchDog();
+
+    if (this.isVod) return;
+
+    this.lastVideoTime = this.video.currentTime;
+    this.freezeCounter = 0;
+
+    this.watchdogTimer = window.setInterval(() => {
+
+        // No vigilar mientras está pausado
+        if (this.video.paused) return;
+
+        // Esperando datos
+        if (this.video.readyState < 2) return;
+
+        if (this.video.currentTime === this.lastVideoTime) {
+
+            this.freezeCounter++;
+
+            console.warn(
+                `[WatchDog] Congelado (${this.freezeCounter}/${this.maxFreezeChecks})`
+            );
+
+            if (this.freezeCounter >= this.maxFreezeChecks) {
+
+                console.warn("[WatchDog] Reconectando...");
+
+                this.stopWatchDog();
+
+                this.currentUrl = "";
+
+                this.reconnect();
+
+            }
+
+        } else {
+
+            this.lastVideoTime = this.video.currentTime;
+
+            this.freezeCounter = 0;
+
+        }
+
+    }, 1000);
+
+}
+
+private stopWatchDog(): void {
+
+    if (this.watchdogTimer !== null) {
+
+        clearInterval(this.watchdogTimer);
+
+        this.watchdogTimer = null;
+
+    }
+
+}
+
   private switchToTsDirect(): void {
     if (this.triedTsUrl || !this.currentChannel) return;
     console.warn("Cambiando a stream .ts directo (fallback)...");
@@ -168,7 +254,7 @@ export class PlayerService {
     const tsUrl = this.xtream.getLiveTsUrl(this.currentChannel.stream_id);
     window.setTimeout(() => {
       this.playUrl(tsUrl);
-    }, 500);
+    }, 150);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -245,7 +331,7 @@ export class PlayerService {
       this.video.load();
       this.currentUrl = "";
       this.tryHlsJs(url);
-    }, 2500);
+    }, 1200);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -369,9 +455,6 @@ export class PlayerService {
         `[TV ${Platform.isWebOS() ? "webOS" : "Tizen"}] Reproducción nativa →`,
         url,
       );
-      
-      console.log("TV URL =", url);
-console.log("Decoded =", decodeURIComponent(url));
 
       this.video.src = url;
       this.video.load();
@@ -510,11 +593,29 @@ console.log("Decoded =", decodeURIComponent(url));
       this.reconnecting = false;
       this.fragParseErrors = 0;
       this.triedTsUrl = false;
-      this.playM3U8();
+      if (this.lastWorkingUrl) {
+
+    console.log(
+        "[Reconnect] Última URL válida →",
+        this.lastWorkingUrl,
+    );
+
+    this.playUrl(this.lastWorkingUrl);
+
+} else {
+
+    console.log(
+        "[Reconnect] Sin URL válida → playM3U8()",
+    );
+
+    this.playM3U8();
+
+}
     }, delay);
   }
 
   public stop(): void {
+    this.stopWatchDog();
     if (this.reconnectTimer !== null) {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
@@ -538,6 +639,7 @@ console.log("Decoded =", decodeURIComponent(url));
   }
 
   public destroy(): void {
+    this.stopWatchDog();
     this.stop();
     this.currentChannel = null;
     this.destroyHls();

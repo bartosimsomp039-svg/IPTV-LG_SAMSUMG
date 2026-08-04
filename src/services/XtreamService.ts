@@ -7,7 +7,7 @@ import type { Series } from "../models/Series";
 
 export class XtreamService {
 
-    private readonly api: ApiClient;
+    private readonly api = new ApiClient();
 
     private host = "";
 
@@ -17,11 +17,10 @@ export class XtreamService {
 
     private lastLoginError = "";
 
-    constructor() {
-
-        this.api = new ApiClient();
-
-    }
+    // Cache de capacidades del proveedor
+private liveExtension = "m3u8";
+private movieExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
+private seriesExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
 
     // ── Proxifica streams (video HLS) ─────────────────────
 private proxifyStream(url: string): string {
@@ -136,6 +135,39 @@ private proxifyImage(url: string | null | undefined): string {
         return `${this.host}/player_api.php?username=${encodeURIComponent(this.username)}&password=${encodeURIComponent(this.password)}&action=${action}`;
 
     }
+
+    private normalizeExtension(
+    extension: string | undefined,
+    fallbacks: string[],
+): string[] {
+
+    const list = [...fallbacks];
+
+    if (extension) {
+
+        const ext = extension
+            .trim()
+            .toLowerCase();
+
+        const index = list.indexOf(ext);
+
+        if (index >= 0) {
+            list.splice(index, 1);
+        }
+
+        list.unshift(ext);
+
+    }
+
+    return list;
+
+}
+
+public getCurrentLiveExtension(): string {
+
+    return this.liveExtension;
+
+}
 
     public async getLiveCategories(): Promise<Category[]> {
 
@@ -257,37 +289,57 @@ private proxifyImage(url: string | null | undefined): string {
 
     public getLiveStreamUrl(streamId: number): string {
 
-        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.m3u8`;
-        return this.proxifyStream(raw);
+    const raw =
+`${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${this.liveExtension}`;
 
-    }
+    return this.proxifyStream(raw);
+
+}
 
     public getLiveTsUrl(streamId: number): string {
 
-        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
-        return this.proxifyStream(raw);
+    const raw =
+`${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
 
-    }
+    return this.proxifyStream(raw);
+
+}
 
     public getMovieStreamUrl(
-        streamId: number,
-        extension: string
-    ): string {
+    streamId: number,
+    extension: string,
+): string {
 
-        const raw = `${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
-        return this.proxifyStream(raw);
+    const ext =
+        this.normalizeExtension(
+            extension,
+            this.movieExtensions,
+        )[0];
 
-    }
+    const raw =
+`${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
+
+    return this.proxifyStream(raw);
+
+}
 
     public getSeriesStreamUrl(
-        streamId: number,
-        extension: string
-    ): string {
+    streamId: number,
+    extension: string,
+): string {
 
-        const raw = `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${extension}`;
-        return this.proxifyStream(raw);
+    const ext =
+        this.normalizeExtension(
+            extension,
+            this.seriesExtensions,
+        )[0];
 
-    }
+    const raw =
+`${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
+
+    return this.proxifyStream(raw);
+
+}
 
     // ── Session ───────────────────────────────────────────
 
