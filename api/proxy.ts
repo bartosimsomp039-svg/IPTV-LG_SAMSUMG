@@ -87,28 +87,33 @@ export default async function handler(request: Request): Promise<Response> {
         targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
 
       const rewritten = text
-        .split("\n")
-        .map((line) => {
-          const trimmed = line.trim();
-          if (trimmed.startsWith("#") || trimmed === "") return line;
+    .split("\n")
+    .map((line) => {
 
-          let absoluteUrl: string;
-          if (
-            trimmed.startsWith("http://") ||
-            trimmed.startsWith("https://")
-          ) {
-            absoluteUrl = trimmed;
-          } else if (trimmed.startsWith("/")) {
-            absoluteUrl =
-              parsedBase.protocol + "//" + parsedBase.host + trimmed;
-          } else {
-            absoluteUrl = baseUrl + trimmed;
-          }
+        const trimmed = line.trim();
 
-          // URL absoluta → funciona en file:// y en cualquier origen
-          return `${proxyOrigin}/api/proxy?url=` + encodeURIComponent(absoluteUrl);
-        })
-        .join("\n");
+        if (trimmed === "" || trimmed.startsWith("#")) {
+            return line;
+        }
+
+        let absoluteUrl: string;
+
+        try {
+            // Resuelve correctamente:
+            // segment.ts
+            // ../segment.ts
+            // /play/...
+            // play/hls-nginx/...
+            // URLs absolutas
+            absoluteUrl = new URL(trimmed, targetUrl).toString();
+        } catch {
+            return line;
+        }
+
+        return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+
+    })
+    .join("\n");
 
       return new Response(rewritten, {
         headers: {
