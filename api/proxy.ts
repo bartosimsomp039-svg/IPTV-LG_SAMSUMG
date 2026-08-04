@@ -52,6 +52,13 @@ export default async function handler(request: Request): Promise<Response> {
     redirect: "follow",
     cache: "no-store",});
 
+    if (!response.ok) {
+    return new Response(await response.text(), {
+        status: response.status,
+        headers: corsHeaders,
+    });
+}
+
     const contentType =
       response.headers.get("content-type") ?? "application/octet-stream";
     const isM3U8 =
@@ -112,7 +119,7 @@ export default async function handler(request: Request): Promise<Response> {
             // /play/...
             // play/hls-nginx/...
             // URLs absolutas
-            absoluteUrl = new URL(trimmed, targetUrl).toString();
+            absoluteUrl = new URL(trimmed, baseUrl).toString();
         } catch {
             return line;
         }
