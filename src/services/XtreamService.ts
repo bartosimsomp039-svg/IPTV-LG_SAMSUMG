@@ -38,17 +38,22 @@ private proxifyStream(url: string): string {
 
 }
 
-    // ── Proxifica imágenes (logos, portadas, iconos) ──────
-    // FIX Mixed Content: rutas http:// bloqueadas por el browser
-    // porque la página corre en https://. Se redirigen por /api/proxy.
-    private proxifyImage(url: string | null | undefined): string {
+// ── Proxifica imágenes (logos, portadas, iconos) ──────
+private proxifyImage(url: string | null | undefined): string {
 
-        if (!url) return "";
-        if (url.startsWith("https://")) return url;
-        if (!url.startsWith("http://")) return url;
-        return `/api/proxy?url=${encodeURIComponent(url)}`;
+    if (!url) return "";
 
-    }
+    if (url.startsWith("https://")) return url;
+    if (!url.startsWith("http://")) return url;
+
+    const API_BASE =
+        window.location.protocol === "file:"
+            ? "https://iptv-lg-samsumg.vercel.app"
+            : "";
+
+    return `${API_BASE}/api/proxy?url=${encodeURIComponent(url)}`;
+
+}
 
     public async login(
         host: string,
