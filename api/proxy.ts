@@ -114,6 +114,14 @@ export default async function handler(request: Request): Promise<Response> {
             return line;
         }
 
+        // Segmentos de video: URL directa (sin proxy)
+        // El token está vinculado a la IP del usuario.
+        // El elemento <video> no aplica CORS, así que funciona directo.
+        const isSegment = /\.(ts|aac|mp4|m4s|fmp4)(\?|$)/i.test(absoluteUrl);
+        if (isSegment) {
+            return absoluteUrl;
+        }
+
         return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
 
     })
