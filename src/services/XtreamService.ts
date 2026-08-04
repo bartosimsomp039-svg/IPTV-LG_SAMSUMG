@@ -254,7 +254,7 @@ private proxifyStream(url: string): string {
 
     public getLiveStreamUrl(streamId: number): string {
 
-        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.m3u8`;
+        const raw = `${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
         return this.proxifyStream(raw);
 
     }
