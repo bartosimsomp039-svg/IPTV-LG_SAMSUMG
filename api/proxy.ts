@@ -1,4 +1,4 @@
-﻿// Edge Runtime — NO cambiar a Node.js.
+﻿﻿// Edge Runtime — NO cambiar a Node.js.
 // Edge Runtime de Vercel SÍ puede conectarse a puertos no estándar
 // como 8080 y 8880 que usan los servidores IPTV.
 export const config = { runtime: "edge" };
@@ -17,12 +17,13 @@ export default async function handler(request: Request): Promise<Response> {
   }
 
   const url = new URL(request.url);
-  const targetParam = url.searchParams.get("url");
-  if (!targetParam) {
+  // URLSearchParams.get() ya devuelve el valor decodificado. No aplicar
+  // decodeURIComponent otra vez: puede romper tokens que contienen "%".
+  const targetUrl = url.searchParams.get("url");
+  if (!targetUrl) {
     return new Response("Missing url", { status: 400, headers: corsHeaders });
   }
 
-  const targetUrl = decodeURIComponent(targetParam);
   if (
     !targetUrl.startsWith("http://") &&
     !targetUrl.startsWith("https://")
@@ -95,39 +96,37 @@ export default async function handler(request: Request): Promise<Response> {
       // Con la URL absoluta (https://iptv-lg-samsumg.vercel.app/api/proxy?url=...)
       // funcionan desde cualquier origen (file://, https://, etc.).
       const proxyOrigin = new URL(request.url).origin;
-
-      const parsedBase = new URL(targetUrl);
-      const baseUrl =
-        targetUrl.substring(0, targetUrl.lastIndexOf("/") + 1);
+      // Usar la URL final permite resolver correctamente playlists que fueron
+      // redirigidas por el servidor IPTV.
+      const baseUrl = new URL(response.url || targetUrl);
+      const toProxyUrl = (value: string): string => {
+        const absoluteUrl = new URL(value, baseUrl).toString();
+        return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+      };
 
       const rewritten = text
-    .split("\n")
-    .map((line) => {
+        .split(/\r?\n/)
+        .map((line) => {
+          const trimmed = line.trim();
+          if (trimmed === "") return line;
 
-        const trimmed = line.trim();
+          try {
+            // Segmentos y playlists hijas aparecen como líneas normales.
+            if (!trimmed.startsWith("#")) {
+              return toProxyUrl(trimmed);
+            }
 
-        if (trimmed === "" || trimmed.startsWith("#")) {
+            // También hay recursos HLS dentro de atributos URI="...":
+            // claves AES, mapas fMP4 y pistas de audio alternativas.
+            return line.replace(
+              /URI="([^"]+)"/g,
+              (_match, uri: string) => `URI="${toProxyUrl(uri)}"`,
+            );
+          } catch {
             return line;
-        }
-
-        let absoluteUrl: string;
-
-        try {
-            // Resuelve correctamente:
-            // segment.ts
-            // ../segment.ts
-            // /play/...
-            // play/hls-nginx/...
-            // URLs absolutas
-            absoluteUrl = new URL(trimmed, baseUrl).toString();
-        } catch {
-            return line;
-        }
-
-        return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
-
-    })
-    .join("\n");
+          }
+        })
+        .join("\n");
 
       return new Response(rewritten, {
         headers: {

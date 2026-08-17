@@ -1,4 +1,4 @@
-﻿import Hls from "hls.js";
+﻿﻿import Hls from "hls.js";
 import mpegts from "mpegts.js";
 
 import type { Channel } from "../models/Channel";
@@ -47,6 +47,7 @@ export class PlayerService {
   private fragParseErrors = 0;
   private readonly maxFragParseErrors = 3;
   private triedTsUrl = false;
+  private readonly proxyPath = "/api/proxy";
 
   // FIX 3: Timer para el intento nativo de live en PC.
   // Si video.src no dispara "canplay" ni "error" en 2.5 s,
@@ -104,6 +105,7 @@ this.video.addEventListener("waiting", () => {
     this.reconnecting = false;
     this.fragParseErrors = 0;
     this.triedTsUrl = false;
+    this.lastWorkingUrl = "";
     this.playM3U8();
   }
 
@@ -115,6 +117,7 @@ this.video.addEventListener("waiting", () => {
     this.reconnecting = false;
     this.fragParseErrors = 0;
     this.triedTsUrl = false;
+    this.lastWorkingUrl = "";
     this.playM3U8();
   }
 
@@ -122,7 +125,7 @@ this.video.addEventListener("waiting", () => {
     if (!this.currentChannel) return;
     const url = this.xtream.getLiveStreamUrl(this.currentChannel.stream_id);
     console.log("LIVE URL:", url);
-    this.playUrl(url);
+    this.playUrl(this.getPlaybackUrl(url));
   }
 
   // ── VOD ───────────────────────────────────────────
@@ -132,9 +135,10 @@ this.video.addEventListener("waiting", () => {
     this.currentChannel = null;
     this.reconnectAttempts = 0;
     this.reconnecting = false;
+    this.lastWorkingUrl = "";
     const ext = movie.container_extension ?? "mp4";
     const url = this.xtream.getMovieStreamUrl(movie.stream_id, ext);
-    this.playUrl(url);
+    this.playUrl(this.getPlaybackUrl(url));
   }
 
   // ── SERIES ────────────────────────────────────────
@@ -144,11 +148,33 @@ this.video.addEventListener("waiting", () => {
     this.currentChannel = null;
     this.reconnectAttempts = 0;
     this.reconnecting = false;
+    this.lastWorkingUrl = "";
     const url = this.xtream.getSeriesStreamUrl(streamId, extension);
-    this.playUrl(url);
+    this.playUrl(this.getPlaybackUrl(url));
   }
 
   // ── CORE ──────────────────────────────────────────
+
+  /**
+   * Chrome needs same-origin requests for hls.js. TV browsers are deliberately
+   * kept on the original URL because their native player can load IPTV media
+   * without the browser CORS restrictions that affect XHR/fetch.
+   */
+  private getPlaybackUrl(sourceUrl: string): string {
+    if (Platform.isTV() || Platform.isSafari()) return sourceUrl;
+
+    try {
+      const source = new URL(sourceUrl, window.location.href);
+      const proxy = new URL(this.proxyPath, window.location.origin);
+
+      if (source.pathname === proxy.pathname) return source.toString();
+
+      proxy.searchParams.set("url", source.toString());
+      return proxy.toString();
+    } catch {
+      return sourceUrl;
+    }
+  }
 
   private destroyHls(): void {
     if (this.hls === null) return;
@@ -251,7 +277,9 @@ private stopWatchDog(): void {
     this.fragParseErrors = 0;
     this.destroyHls();
     this.currentUrl = "";
-    const tsUrl = this.xtream.getLiveTsUrl(this.currentChannel.stream_id);
+    const tsUrl = this.getPlaybackUrl(
+      this.xtream.getLiveTsUrl(this.currentChannel.stream_id),
+    );
     window.setTimeout(() => {
       this.playUrl(tsUrl);
     }, 150);
@@ -477,8 +505,14 @@ private stopWatchDog(): void {
     // ─────────────────────────────────────────────────────────
 
     const urlLower = url.toLowerCase();
-    const isTsStream = urlLower.endsWith(".ts");
-    const isM3U8 = urlLower.includes(".m3u8") || (!isTsStream && !this.isVod);
+    let pathname = urlLower;
+    try {
+      pathname = new URL(url, window.location.href).pathname.toLowerCase();
+    } catch {
+      // Keep the original string when a provider returns a non-standard URL.
+    }
+    const isTsStream = pathname.endsWith(".ts");
+    const isM3U8 = pathname.endsWith(".m3u8") || (!isTsStream && !this.isVod);
     const isDirectVideo = this.isVod && !isM3U8;
 
     // ── (d) Safari: HLS nativo ──────────────────────────────
@@ -629,6 +663,7 @@ private stopWatchDog(): void {
     this.isVod = false;
     this.fragParseErrors = 0;
     this.triedTsUrl = false;
+    this.lastWorkingUrl = "";
     // FIX 2: Limpiar currentChannel en stop().
     // Sin esto, play(mismoCanal) después de stop() retorna inmediatamente
     // porque stream_id coincide con el canal "actual" que nunca se limpió.
