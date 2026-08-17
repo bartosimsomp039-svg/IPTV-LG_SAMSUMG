@@ -31,16 +31,14 @@ export default async function handler(request: Request): Promise<Response> {
     return new Response("Invalid URL", { status: 400, headers: corsHeaders });
   }
 
-  const parsedTarget = new URL(targetUrl);
-
   const upstreamHeaders: Record<string, string> = {
+    // Algunos proveedores bloquean el User-Agent de Smart TV cuando la
+    // petición realmente llega desde un proxy de escritorio.
     "User-Agent":
-      "Mozilla/5.0 (SMART-TV; Linux armv7l) AppleWebKit/538.1 (KHTML, like Gecko) Version/8.0 Safari/538.1",
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
     Accept: "*/*",
     // No pedir compresión — evita cuerpos corruptos en segmentos de video
     "Accept-Encoding": "identity",
-    Referer: parsedTarget.origin + "/",
-    Origin: parsedTarget.origin,
   };
 
   // Reenviar Range para soporte de seeking en películas/series

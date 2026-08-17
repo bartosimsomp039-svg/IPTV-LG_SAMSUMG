@@ -29,8 +29,8 @@ export default async function handler(request: Request): Promise<Response> {
     }
   } else {
     const url = new URL(request.url);
-    const p = url.searchParams.get("url");
-    targetUrl = p ? decodeURIComponent(p) : null;
+    // URLSearchParams.get() ya decodifica el parámetro.
+    targetUrl = url.searchParams.get("url");
   }
 
   if (!targetUrl) {
@@ -51,7 +51,7 @@ export default async function handler(request: Request): Promise<Response> {
     const upstream = await fetch(targetUrl, {
       headers: {
         "User-Agent":
-          "Mozilla/5.0 (SMART-TV; Linux armv7l) AppleWebKit/538.1 (KHTML, like Gecko) Version/8.0 Safari/538.1",
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         Accept: "application/json, */*",
       },
       signal: AbortSignal.timeout(12000),
