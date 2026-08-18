@@ -10,7 +10,16 @@ export class Login {
         return `
 <div class="login">
 
-    <div class="background"></div>
+    <video
+  class="backgroundVideo"
+  autoplay
+  muted
+  loop
+  playsinline
+  aria-hidden="true"
+>
+  <source src="/videos/login.mp4" type="video/mp4">
+</video>
 
     <div class="panel">
 
@@ -171,4 +180,4 @@ CARGAR LISTA
 
     }
 
-}
+}   

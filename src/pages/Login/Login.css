@@ -25,22 +25,13 @@ position:relative;
 
 }
 
-.background {
+.backgroundVideo {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
-
-  background:
-    linear-gradient(
-      90deg,
-      rgba(5, 3, 15, 0.78),
-      rgba(11, 5, 28, 0.46),
-      rgba(5, 3, 15, 0.78)
-    ),
-    url("/images/login-background.jpeg") center / cover no-repeat;
-
-  transform: scale(1.03);
+  object-fit: cover;
+  object-position: center;
   z-index: 0;
 }
 
