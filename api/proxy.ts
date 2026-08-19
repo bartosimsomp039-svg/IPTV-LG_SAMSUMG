@@ -109,9 +109,12 @@ export default async function handler(request: Request): Promise<Response> {
       // redirigidas por el servidor IPTV.
       const playlistUrl = response.url || targetUrl;
       const baseUrl = new URL(playlistUrl);
+      // Do not use the redirected segment host as Referer. Providers often
+      // authorize the original playlist domain, not the CDN/IP in response.url.
+      const playlistReferrer = referrerParam || targetUrl;
       const toProxyUrl = (value: string): string => {
         const absoluteUrl = new URL(value, baseUrl).toString();
-        return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}&ref=${encodeURIComponent(playlistUrl)}`;
+        return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}&ref=${encodeURIComponent(playlistReferrer)}`;
       };
 
       const rewritten = text
