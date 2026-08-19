@@ -48,6 +48,8 @@ export class PlayerService {
   private readonly maxFragParseErrors = 3;
   private triedTsUrl = false;
   private readonly proxyPath = "/api/proxy";
+  private vodCandidates: string[] = [];
+  private vodCandidateIndex = 0;
 
   // FIX 3: Timer para el intento nativo de live en PC.
   // Si video.src no dispara "canplay" ni "error" en 2.5 s,
@@ -77,7 +79,11 @@ private readonly maxFreezeChecks = 3;
     this.video.addEventListener("error", () => {
       const err = this.video.error;
       console.warn("Video Error", err?.code, err?.message);
-      if (!this.isVod) this.reconnect();
+      if (!this.isVod) {
+        this.reconnect();
+      } else {
+        this.playNextVodCandidate();
+      }
     });
     this.video.addEventListener("ended", () => {
       if (!this.isVod) this.reconnect();
@@ -137,8 +143,13 @@ this.video.addEventListener("waiting", () => {
     this.reconnecting = false;
     this.lastWorkingUrl = "";
     const ext = movie.container_extension ?? "mp4";
-    const url = this.xtream.getMovieStreamUrl(movie.stream_id, ext);
-    this.playUrl(this.getPlaybackUrl(url));
+    this.startVodCandidates(
+      this.getExtensionCandidates(ext).map((candidate) =>
+        this.getPlaybackUrl(
+          this.xtream.getMovieStreamUrl(movie.stream_id, candidate),
+        ),
+      ),
+    );
   }
 
   // ── SERIES ────────────────────────────────────────
@@ -149,8 +160,14 @@ this.video.addEventListener("waiting", () => {
     this.reconnectAttempts = 0;
     this.reconnecting = false;
     this.lastWorkingUrl = "";
-    const url = this.xtream.getSeriesStreamUrl(streamId, extension);
-    this.playUrl(this.getPlaybackUrl(url));
+    const ext = extension || "mp4";
+    this.startVodCandidates(
+      this.getExtensionCandidates(ext).map((candidate) =>
+        this.getPlaybackUrl(
+          this.xtream.getSeriesStreamUrl(streamId, candidate),
+        ),
+      ),
+    );
   }
 
   // ── CORE ──────────────────────────────────────────
@@ -161,7 +178,12 @@ this.video.addEventListener("waiting", () => {
    * without the browser CORS restrictions that affect XHR/fetch.
    */
   private getPlaybackUrl(sourceUrl: string): string {
-    if (Platform.isTV() || Platform.isSafari()) return sourceUrl;
+    // Live can be loaded natively by TVs/Safari. VOD stays on the same-origin
+    // proxy so HTTPS, Range and the normalized MIME type work consistently on
+    // both desktop browsers and Smart TVs.
+    if ((Platform.isTV() || Platform.isSafari()) && !this.isVod) {
+      return sourceUrl;
+    }
 
     try {
       const source = new URL(sourceUrl, window.location.href);
@@ -174,6 +196,55 @@ this.video.addEventListener("waiting", () => {
     } catch {
       return sourceUrl;
     }
+  }
+
+  private getExtensionCandidates(extension: string): string[] {
+    const normalized = extension.trim().toLowerCase().replace(/^\./, "");
+    const candidates =
+      normalized === "mp4"
+        ? [normalized]
+        : ["mp4", normalized];
+
+    return [...new Set(candidates)];
+  }
+
+  private startVodCandidates(candidates: string[]): void {
+    this.vodCandidates = candidates;
+    this.vodCandidateIndex = 0;
+    this.playNextVodCandidate();
+  }
+
+  private playNextVodCandidate(): void {
+    if (!this.isVod || this.vodCandidateIndex >= this.vodCandidates.length) {
+      console.error("No se pudo reproducir el VOD con los formatos disponibles.");
+      return;
+    }
+
+    const nextUrl = this.vodCandidates[this.vodCandidateIndex];
+    this.vodCandidateIndex++;
+    console.log(
+      `[VOD] Intentando formato ${this.vodCandidateIndex}/${this.vodCandidates.length}`,
+    );
+    this.playUrl(nextUrl);
+  }
+
+  private playMediaWhenReady(): void {
+    let attempted = false;
+    const start = (): void => {
+      if (attempted) return;
+      attempted = true;
+      void this.video.play().catch(() => {
+        console.warn("Autoplay bloqueado; pulsa Play para iniciar.");
+      });
+    };
+
+    if (this.video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+      start();
+      return;
+    }
+
+    this.video.addEventListener("canplay", start, { once: true });
+    this.video.addEventListener("loadedmetadata", start, { once: true });
   }
 
   private destroyHls(): void {
@@ -486,11 +557,7 @@ private stopWatchDog(): void {
 
       this.video.src = url;
       this.video.load();
-      this.video.play()?.catch(() => {
-        console.warn("Autoplay bloqueado en TV");
-        // En TV el autoplay a veces requiere interacción previa
-        // El usuario puede presionar OK/Enter para reanudar
-      });
+      this.playMediaWhenReady();
       return;
     }
 
@@ -538,9 +605,7 @@ private stopWatchDog(): void {
       console.log("[PC] VOD directo →", url);
       this.video.src = url;
       this.video.load();
-      this.video.play()?.catch(() => {
-        console.warn("No se pudo reproducir VOD directamente");
-      });
+      this.playMediaWhenReady();
       return;
     }
 

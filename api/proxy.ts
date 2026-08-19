@@ -7,7 +7,7 @@ export default async function handler(request: Request): Promise<Response> {
   const corsHeaders = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, OPTIONS",
-    "Access-Control-Allow-Headers": "Range, *",
+    "Access-Control-Allow-Headers": "Range, Content-Type",
     "Access-Control-Expose-Headers":
       "Content-Range, Content-Length, Accept-Ranges",
   };
@@ -141,35 +141,36 @@ export default async function handler(request: Request): Promise<Response> {
     // La versión original forzaba "video/mp2t" para TODO el contenido
     // no-imagen, lo que rompía MP4/MKV en TV (el browser no sabía
     // que era un MP4 y no lo reproducía correctamente).
-    let finalContentType = contentType;
+    const urlLower = targetUrl.toLowerCase();
+    const targetPath = new URL(targetUrl).pathname.toLowerCase();
+    const extension = targetPath.match(/\.([a-z0-9]+)$/)?.[1] ?? "";
+    const mimeByExtension: Record<string, string> = {
+      mp4: "video/mp4",
+      m4v: "video/mp4",
+      mkv: "video/x-matroska",
+      avi: "video/x-msvideo",
+      mov: "video/quicktime",
+      ts: "video/mp2t",
+    };
+    const isVod = urlLower.includes("/movie/") || urlLower.includes("/series/");
+    let finalContentType = contentType.split(";")[0].trim().toLowerCase();
 
-    // Solo corregir si el servidor devuelve un tipo genérico
-    // pero la URL nos dice cuál es el formato real.
-    if (
-      finalContentType === "application/octet-stream" ||
-      finalContentType === ""
+    // The extension is more reliable than the generic or incorrect MIME
+    // returned by many Xtream providers. This matters to native TV players.
+    if (mimeByExtension[extension]) {
+      finalContentType = mimeByExtension[extension];
+    } else if (urlLower.includes("/live/")) {
+      finalContentType = "video/mp2t";
+    } else if (
+      isVod &&
+      (finalContentType === "application/octet-stream" || !finalContentType)
     ) {
-      const urlLower = targetUrl.toLowerCase();
-      if (urlLower.includes(".ts") || urlLower.includes("/live/")) {
-        finalContentType = "video/mp2t";
-      } else if (
-        urlLower.includes(".mp4") ||
-        urlLower.includes("/movie/")
-      ) {
-        finalContentType = "video/mp4";
-      } else if (urlLower.includes(".mkv")) {
-        finalContentType = "video/x-matroska";
-      } else if (urlLower.includes(".avi")) {
-        finalContentType = "video/x-msvideo";
-      } else if (urlLower.includes(".m4v")) {
-        finalContentType = "video/mp4";
-      } else if (urlLower.includes("/series/")) {
-        finalContentType = "video/mp4";
-      }
+      finalContentType = "video/mp4";
     }
 
     const responseHeaders: Record<string, string> = {
       "Content-Type": finalContentType,
+      "Content-Disposition": "inline",
       "Cache-Control": "no-cache",
       "Accept-Ranges": "bytes",
       ...corsHeaders,

@@ -20,6 +20,9 @@
     "hls.js": "^1.6.16",
     "mpegts.js": "^1.8.0"
   },
+  "overrides": {
+    "webworkify-webpack": "2.1.5"
+  },
   "description": "",
   "main": "index.js",
   "keywords": [],

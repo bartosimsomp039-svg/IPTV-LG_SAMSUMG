@@ -22,18 +22,21 @@ private liveExtension = "m3u8";
 private movieExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
 private seriesExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
 
-    // ── Proxifica streams (video HLS) ─────────────────────
-private proxifyStream(url: string): string {
-  if (!url.startsWith("http://") && !url.startsWith("https://")) return url;
-
-    const API_BASE =
-        window.location.protocol === "file:"
+    // ── Proxifica streams (video HLS/VOD) ──────────────────
+    private getApiBase(): string {
+        // Use the active origin so custom domains and Vercel aliases work
+        // without hardcoding a deployment URL. The absolute URL is also
+        // important for a Smart TV web app launched from file://.
+        return window.location.protocol === "file:"
             ? "https://iptv-lg-samsumg.vercel.app"
-            : "";
+            : window.location.origin;
+    }
 
-    return `${API_BASE}/api/proxy?url=${encodeURIComponent(url)}`;
+    private proxifyStream(url: string): string {
+        if (!url.startsWith("http://") && !url.startsWith("https://")) return url;
 
-}
+        return `${this.getApiBase()}/api/proxy?url=${encodeURIComponent(url)}`;
+    }
 
 // ── Proxifica imágenes (logos, portadas, iconos) ──────
 private proxifyImage(url: string | null | undefined): string {
@@ -43,12 +46,7 @@ private proxifyImage(url: string | null | undefined): string {
     if (url.startsWith("https://")) return url;
     if (!url.startsWith("http://")) return url;
 
-    const API_BASE =
-        window.location.protocol === "file:"
-            ? "https://iptv-lg-samsumg.vercel.app"
-            : "";
-
-    return `${API_BASE}/api/proxy?url=${encodeURIComponent(url)}`;
+    return `${this.getApiBase()}/api/proxy?url=${encodeURIComponent(url)}`;
 
 }
 

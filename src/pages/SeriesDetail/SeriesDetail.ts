@@ -172,7 +172,7 @@ export class SeriesDetail {
 <div class="episode-card"
      tabindex="0"
      data-stream="${ep.id}"
-     data-ext="${ep.container_extension ?? "mkv"}">
+      data-ext="${ep.container_extension ?? "mp4"}">
     ${thumb}
     <div class="episode-info">
         <div class="episode-num">E${ep.episode_num ?? ""}</div>
@@ -188,7 +188,7 @@ export class SeriesDetail {
                 card.addEventListener("click", () => {
 
                     const streamId = Number(card.dataset.stream);
-                    const ext = card.dataset.ext ?? "mkv";
+                    const ext = card.dataset.ext ?? "mp4";
 
                     Navigation.episodeStreamId = streamId;
                     Navigation.episodeExtension = ext;

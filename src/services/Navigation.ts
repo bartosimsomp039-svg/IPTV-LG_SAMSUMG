@@ -20,6 +20,6 @@ export class Navigation {
 
     public static selectedSeries: Series | null = null;
     public static episodeStreamId: number = 0;
-    public static episodeExtension: string = "mkv";
+    public static episodeExtension: string = "mp4";
 
 }
