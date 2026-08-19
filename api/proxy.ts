@@ -41,6 +41,17 @@ export default async function handler(request: Request): Promise<Response> {
     "Accept-Encoding": "identity",
   };
 
+  // Algunos proveedores validan el Referer/Origin de los segmentos contra
+  // la playlist que los generó. El navegador solo ve nuestro proxy, por lo
+  // que conservamos la playlist original en ?ref= al reescribir el M3U8.
+  const referrerParam = url.searchParams.get("ref");
+  let upstreamReferer = `${new URL(targetUrl).origin}/`;
+  if (referrerParam?.startsWith("http://") || referrerParam?.startsWith("https://")) {
+    upstreamReferer = referrerParam;
+  }
+  upstreamHeaders["Referer"] = upstreamReferer;
+  upstreamHeaders["Origin"] = new URL(upstreamReferer).origin;
+
   // Reenviar Range para soporte de seeking en películas/series
   const rangeHeader = request.headers.get("range");
   if (rangeHeader) upstreamHeaders["Range"] = rangeHeader;
@@ -96,10 +107,11 @@ export default async function handler(request: Request): Promise<Response> {
       const proxyOrigin = new URL(request.url).origin;
       // Usar la URL final permite resolver correctamente playlists que fueron
       // redirigidas por el servidor IPTV.
-      const baseUrl = new URL(response.url || targetUrl);
+      const playlistUrl = response.url || targetUrl;
+      const baseUrl = new URL(playlistUrl);
       const toProxyUrl = (value: string): string => {
         const absoluteUrl = new URL(value, baseUrl).toString();
-        return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}`;
+        return `${proxyOrigin}/api/proxy?url=${encodeURIComponent(absoluteUrl)}&ref=${encodeURIComponent(playlistUrl)}`;
       };
 
       const rewritten = text

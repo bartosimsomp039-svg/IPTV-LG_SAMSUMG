@@ -43,8 +43,7 @@ private proxifyImage(url: string | null | undefined): string {
 
     if (!url) return "";
 
-    if (url.startsWith("https://")) return url;
-    if (!url.startsWith("http://")) return url;
+    if (!url.startsWith("http://") && !url.startsWith("https://")) return url;
 
     return `${this.getApiBase()}/api/proxy?url=${encodeURIComponent(url)}`;
 
