@@ -115,15 +115,16 @@ export default async function handler(
     }
 
     const contentType =
-      response.headers.get("content-type") ||
-      "application/octet-stream";
+  response.headers.get("content-type") || "";
 
-    const finalUrl = response.url || targetUrl;
+const finalUrl = response.url || targetUrl;
 
-    const isM3U8 =
-      contentType.toLowerCase().includes("mpegurl") ||
-      finalUrl.toLowerCase().includes(".m3u8") ||
-      targetUrl.toLowerCase().includes(".m3u8");
+const isM3U8 =
+  contentType.toLowerCase().includes("mpegurl") ||
+  contentType.toLowerCase().includes("m3u") ||
+  finalUrl.toLowerCase().includes(".m3u8") ||
+  targetUrl.toLowerCase().includes(".m3u8") ||
+  targetUrl.toLowerCase().includes("/get.php");
 
     /*
      * ------------------------------------------------------------
