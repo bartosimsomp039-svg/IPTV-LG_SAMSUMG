@@ -676,49 +676,225 @@ if (!response) {
           })
           .join("\n");
 
-      // ------------------------------------------------------------
-// PLAYLIST M3U / M3U8
-// ------------------------------------------------------------
+      // ----------------------------------------------------------
+      // RESPUESTA PLAYLIST
+      // ----------------------------------------------------------
 
-if (isPlaylist) {
-  const text = await response.text();
+      return new Response(
+        rewritten,
+        {
+          status: 200,
 
-  console.log(
-    "=========== PLAYLIST ==========="
-  );
+          headers: {
+            "Content-Type":
+              "application/vnd.apple.mpegurl; charset=utf-8",
 
-  console.log(
-    text.substring(0, 5000)
-  );
+            "Cache-Control":
+              "no-cache, no-store, must-revalidate",
 
-  console.log(
-    "================================"
-  );
+            Pragma:
+              "no-cache",
 
-  // ----------------------------------------------------------
-  // VALIDAR PLAYLIST
-  // ----------------------------------------------------------
+            ...corsHeaders,
+          },
+        }
+      );
+    }
 
-  if (
-    !text.includes("#EXTM3U") &&
-    !text.includes("#EXT-X-")
-  ) {
+    // ------------------------------------------------------------
+    // VIDEO / SEGMENTOS / IMÁGENES
+    // ------------------------------------------------------------
+
+    const targetPath =
+      parsedTarget.pathname
+        .toLowerCase();
+
+    const extension =
+      targetPath.match(
+        /\.([a-z0-9]+)$/
+      )?.[1] || "";
+
+    const mimeByExtension: Record<
+      string,
+      string
+    > = {
+      mp4:
+        "video/mp4",
+
+      m4v:
+        "video/mp4",
+
+      mkv:
+        "video/x-matroska",
+
+      avi:
+        "video/x-msvideo",
+
+      mov:
+        "video/quicktime",
+
+      ts:
+        "video/mp2t",
+
+      m3u:
+        "application/vnd.apple.mpegurl",
+
+      m3u8:
+        "application/vnd.apple.mpegurl",
+
+      jpg:
+        "image/jpeg",
+
+      jpeg:
+        "image/jpeg",
+
+      png:
+        "image/png",
+
+      webp:
+        "image/webp",
+
+      gif:
+        "image/gif",
+    };
+
+    let finalContentType =
+      contentType
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+
+    // ------------------------------------------------------------
+    // MIME POR EXTENSIÓN
+    // ------------------------------------------------------------
+
+    if (
+      mimeByExtension[
+        extension
+      ]
+    ) {
+      finalContentType =
+        mimeByExtension[
+          extension
+        ];
+    }
+
+    // ------------------------------------------------------------
+    // TS LIVE
+    // ------------------------------------------------------------
+
+    if (
+      finalContentType ===
+        "application/octet-stream" &&
+      (
+        targetLower.includes(
+          "/live/"
+        ) ||
+        targetLower.includes(
+          "/play/hls"
+        ) ||
+        targetLower.endsWith(
+          ".ts"
+        )
+      )
+    ) {
+      finalContentType =
+        "video/mp2t";
+    }
+
+    // ------------------------------------------------------------
+    // HEADERS RESPUESTA
+    // ------------------------------------------------------------
+
+    const responseHeaders: Record<
+      string,
+      string
+    > = {
+      "Content-Type":
+        finalContentType,
+
+      "Content-Disposition":
+        "inline",
+
+      "Cache-Control":
+        "no-cache, no-store",
+
+      "Accept-Ranges":
+        "bytes",
+
+      ...corsHeaders,
+    };
+
+    // ------------------------------------------------------------
+    // CONTENT LENGTH
+    // ------------------------------------------------------------
+
+    const contentLength =
+      response.headers.get(
+        "content-length"
+      );
+
+    if (contentLength) {
+      responseHeaders[
+        "Content-Length"
+      ] = contentLength;
+    }
+
+    // ------------------------------------------------------------
+    // CONTENT RANGE
+    // ------------------------------------------------------------
+
+    const contentRange =
+      response.headers.get(
+        "content-range"
+      );
+
+    if (contentRange) {
+      responseHeaders[
+        "Content-Range"
+      ] = contentRange;
+    }
+
+    console.log(
+      "UPSTREAM OK:",
+      response.status,
+      finalContentType
+    );
+
+    // ------------------------------------------------------------
+    // STREAM
+    // ------------------------------------------------------------
+
+    return new Response(
+      response.body,
+      {
+        status:
+          response.status,
+
+        headers:
+          responseHeaders,
+      }
+    );
+  } catch (error) {
+    console.error(
+      "========== PROXY ERROR =========="
+    );
+
+    console.error(error);
+
+    console.error(
+      "================================="
+    );
+
     return new Response(
       JSON.stringify({
         error:
-          "El servidor IPTV no devolvió una playlist válida",
-
-        upstream_status:
-          response.status,
-
-        upstream_url:
-          finalUrl,
-
-        upstream_content_type:
-          contentType,
-
-        upstream_preview:
-          text.substring(0, 1000),
+          "Proxy error: " +
+          (
+            error instanceof Error
+              ? error.message
+              : String(error)
+          ),
       }),
       {
         status: 502,
@@ -732,255 +908,4 @@ if (isPlaylist) {
       }
     );
   }
-
-  // ----------------------------------------------------------
-  // 🔧 CAMBIO LIVE
-  //
-  // MUY IMPORTANTE:
-  //
-  // La playlist inicial puede venir de:
-  //
-  // flowzy.work
-  //
-  // pero después de seguir el 302 la playlist real puede estar
-  // en:
-  //
-  // 54.39.97.117
-  //
-  // Por eso SIEMPRE usamos finalUrl como base.
-  // ----------------------------------------------------------
-
-  const baseUrl =
-    new URL(finalUrl);
-
-  const proxyOrigin =
-    requestUrl.origin;
-
-  // ----------------------------------------------------------
-  // 🔧 CAMBIO LIVE
-  //
-  // Referer utilizado por los segmentos.
-  //
-  // Para la playlist redirigida utilizamos el origen real.
-  // ----------------------------------------------------------
-
-  const playlistReferer =
-    finalUrl;
-
-  const playlistOrigin =
-    baseUrl.origin;
-
-  console.log(
-    "LIVE PLAYLIST FINAL URL:",
-    finalUrl
-  );
-
-  console.log(
-    "LIVE PLAYLIST ORIGIN:",
-    playlistOrigin
-  );
-
-  console.log(
-    "LIVE PLAYLIST REFERER:",
-    playlistReferer
-  );
-
-  // ----------------------------------------------------------
-  // 🔧 CAMBIO LIVE
-  //
-  // Convierte cualquier URI de la playlist en una URL proxy.
-  //
-  // IMPORTANTE:
-  //
-  // - conserva query string
-  // - conserva token
-  // - conserva lvtoken
-  // - conserva r
-  // - conserva rt
-  // - conserva cualquier otro parámetro
-  // - soporta URLs absolutas
-  // - soporta URLs relativas
-  // ----------------------------------------------------------
-
-  const toProxyUrl = (
-    value: string,
-    referer?: string
-  ): string => {
-    try {
-      const cleanValue =
-        value.trim();
-
-      if (!cleanValue) {
-        return value;
-      }
-
-      // ------------------------------------------------------
-      // Resolver URL contra la playlist REAL.
-      // ------------------------------------------------------
-
-      const absoluteUrl =
-        new URL(
-          cleanValue,
-          baseUrl
-        ).toString();
-
-      const proxyUrl =
-        new URL(
-          `${proxyOrigin}/api/proxy`
-        );
-
-      proxyUrl.searchParams.set(
-        "url",
-        absoluteUrl
-      );
-
-      // ------------------------------------------------------
-      // 🔧 CAMBIO LIVE
-      //
-      // Guardamos el referer para que el siguiente request
-      // del proxy pueda enviarlo al servidor upstream.
-      // ------------------------------------------------------
-
-      if (referer) {
-        proxyUrl.searchParams.set(
-          "_ref",
-          referer
-        );
-      }
-
-      return proxyUrl.toString();
-
-    } catch (error) {
-
-      console.error(
-        "ERROR CONSTRUYENDO PROXY URL:",
-        value,
-        error
-      );
-
-      return value;
-    }
-  };
-
-  // ----------------------------------------------------------
-  // 🔧 CAMBIO LIVE
-  //
-  // REESCRIBIR PLAYLIST
-  //
-  // Esto es lo fundamental.
-  //
-  // Los .ts generados por el servidor NO se deben inventar.
-  //
-  // Ejemplo:
-  //
-  // playlist:
-  //
-  // http://54.39.97.117:8080/play/hls/.../segmento.ts?token=...
-  //
-  // pasa a:
-  //
-  // https://iptv-lg-samsumg.vercel.app/api/proxy?url=...
-  //
-  // conservando TODOS los parámetros.
-  // ----------------------------------------------------------
-
-  const rewritten =
-    text
-      .split(/\r?\n/)
-      .map((line) => {
-
-        const trimmed =
-          line.trim();
-
-        if (!trimmed) {
-          return line;
-        }
-
-        try {
-
-          // --------------------------------------------------
-          // URL / URI DIRECTA
-          // --------------------------------------------------
-
-          if (
-            !trimmed.startsWith("#")
-          ) {
-
-            return toProxyUrl(
-              trimmed,
-              playlistReferer
-            );
-          }
-
-          // --------------------------------------------------
-          // URI="..."
-          //
-          // EXT-X-KEY
-          // EXT-X-MAP
-          // EXT-X-MEDIA
-          // etc.
-          // --------------------------------------------------
-
-          return line.replace(
-            /URI="([^"]+)"/g,
-            (
-              _match,
-              uri: string
-            ) => {
-
-              return `URI="${toProxyUrl(
-                uri,
-                playlistReferer
-              )}"`;
-            }
-          );
-
-        } catch (error) {
-
-          console.error(
-            "ERROR REESCRIBIENDO PLAYLIST:",
-            line,
-            error
-          );
-
-          return line;
-        }
-      })
-      .join("\n");
-
-  console.log(
-    "=========== PLAYLIST REWRITTEN ==========="
-  );
-
-  console.log(
-    rewritten.substring(0, 5000)
-  );
-
-  console.log(
-    "==========================================="
-  );
-
-  // ----------------------------------------------------------
-  // RESPUESTA PLAYLIST
-  // ----------------------------------------------------------
-
-  return new Response(
-    rewritten,
-    {
-      status: 200,
-
-      headers: {
-        "Content-Type":
-          "application/vnd.apple.mpegurl; charset=utf-8",
-
-        "Cache-Control":
-          "no-cache, no-store, must-revalidate",
-
-        Pragma:
-          "no-cache",
-
-        ...corsHeaders,
-      },
-    }
-  );
 }
