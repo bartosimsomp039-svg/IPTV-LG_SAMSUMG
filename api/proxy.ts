@@ -89,6 +89,10 @@ export default async function handler(
   // HEADERS HACIA UPSTREAM
   // ------------------------------------------------------------
 
+  const upstreamReferer =
+    internalReferer ||
+    `${parsedTarget.origin}/`;
+
   const upstreamHeaders: Record<string, string> = {
     "User-Agent":
       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -97,14 +101,11 @@ export default async function handler(
 
     "Accept-Encoding": "identity",
 
-    // LIVE:
-    // usa el Referer de la playlist.
-    //
-    // VOD / imágenes / otros:
-    // conserva el comportamiento original.
-    Referer:
-      internalReferer ||
-      `${parsedTarget.origin}/`,
+    // 🔧 CAMBIO LIVE:
+    // Mantener Referer y Origin coherentes con el servidor
+    // que realmente entrega el HLS.
+    Referer: upstreamReferer,
+    Origin: new URL(upstreamReferer).origin,
   };
 
   // ------------------------------------------------------------
@@ -537,11 +538,19 @@ if (!response) {
       //
       // ----------------------------------------------------------
 
+      // 🔧 CAMBIO LIVE:
+      // No enviar como Referer la URL completa del manifiesto/token.
+      // Algunos backends HLS rechazan los segmentos con 403.
       const playlistReferer =
-        finalUrl;
+        new URL(finalUrl).origin + "/";
 
       console.log(
-        "PLAYLIST REFERER:",
+        "PLAYLIST FINAL:",
+        finalUrl
+      );
+
+      console.log(
+        "PLAYLIST REFERER LIVE:",
         playlistReferer
       );
 
