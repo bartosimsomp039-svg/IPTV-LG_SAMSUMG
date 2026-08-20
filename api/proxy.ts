@@ -68,6 +68,24 @@ export default async function handler(
   const targetLower = targetUrl.toLowerCase();
 
   // ------------------------------------------------------------
+  // REFERER INTERNO PARA LIVE
+  // ------------------------------------------------------------
+  //
+  // Cuando el proxy recibe un segmento generado desde una
+  // playlist HLS, puede venir:
+  //
+  // ?url=SEGMENTO&_ref=PLAYLIST
+  //
+  // Esto permite conservar el Referer de la playlist original.
+  //
+  // Para VOD/MKV/MP4/imágenes, si no existe _ref, se mantiene
+  // el comportamiento anterior.
+  // ------------------------------------------------------------
+
+  const internalReferer =
+    requestUrl.searchParams.get("_ref");
+
+  // ------------------------------------------------------------
   // HEADERS HACIA UPSTREAM
   // ------------------------------------------------------------
 
@@ -79,17 +97,26 @@ export default async function handler(
 
     "Accept-Encoding": "identity",
 
-    Referer: `${parsedTarget.origin}/`,
+    // LIVE:
+    // usa el Referer de la playlist.
+    //
+    // VOD / imágenes / otros:
+    // conserva el comportamiento original.
+    Referer:
+      internalReferer ||
+      `${parsedTarget.origin}/`,
   };
 
   // ------------------------------------------------------------
   // RANGE
   // ------------------------------------------------------------
 
-  const rangeHeader = request.headers.get("range");
+  const rangeHeader =
+    request.headers.get("range");
 
   if (rangeHeader) {
-    upstreamHeaders["Range"] = rangeHeader;
+    upstreamHeaders["Range"] =
+      rangeHeader;
   }
 
   // ------------------------------------------------------------
@@ -112,37 +139,76 @@ export default async function handler(
         ? "MP4"
         : "RESOURCE";
 
-    console.log("========== PROXY ==========");
-    console.log("TARGET:", targetUrl);
-    console.log("TYPE:", requestedType);
-    console.log("REFERER:", upstreamHeaders["Referer"]);
+    console.log(
+      "========== PROXY =========="
+    );
 
-    if (rangeHeader) {
-      console.log("RANGE:", rangeHeader);
+    console.log(
+      "TARGET:",
+      targetUrl
+    );
+
+    console.log(
+      "TYPE:",
+      requestedType
+    );
+
+    console.log(
+      "REFERER:",
+      upstreamHeaders["Referer"]
+    );
+
+    if (internalReferer) {
+      console.log(
+        "INTERNAL PLAYLIST REF:",
+        internalReferer
+      );
     }
 
-    console.log("============================");
+    if (rangeHeader) {
+      console.log(
+        "RANGE:",
+        rangeHeader
+      );
+    }
 
-    const response = await fetch(targetUrl, {
-      method: "GET",
-      headers: upstreamHeaders,
-      redirect: "follow",
-      cache: "no-store",
-    });
+    console.log(
+      "============================"
+    );
+
+    const response = await fetch(
+      targetUrl,
+      {
+        method: "GET",
+
+        headers:
+          upstreamHeaders,
+
+        redirect: "follow",
+
+        cache: "no-store",
+      }
+    );
 
     // ------------------------------------------------------------
     // URL FINAL DESPUÉS DE REDIRECT
     // ------------------------------------------------------------
 
-    const finalUrl = response.url || targetUrl;
-    const finalLower = finalUrl.toLowerCase();
+    const finalUrl =
+      response.url ||
+      targetUrl;
+
+    const finalLower =
+      finalUrl.toLowerCase();
 
     // ------------------------------------------------------------
     // CONTENT TYPE
     // ------------------------------------------------------------
 
     const contentType =
-      response.headers.get("content-type") || "";
+      response.headers.get(
+        "content-type"
+      ) || "";
 
     const contentTypeLower =
       contentType.toLowerCase();
@@ -152,7 +218,8 @@ export default async function handler(
     // ------------------------------------------------------------
 
     if (!response.ok) {
-      const errorText = await response.text();
+      const errorText =
+        await response.text();
 
       console.error(
         "========== UPSTREAM ERROR =========="
@@ -179,8 +246,16 @@ export default async function handler(
       );
 
       console.error(
+        "REFERER:",
+        upstreamHeaders["Referer"]
+      );
+
+      console.error(
         "BODY:",
-        errorText.substring(0, 1000)
+        errorText.substring(
+          0,
+          1000
+        )
       );
 
       console.error(
@@ -191,7 +266,8 @@ export default async function handler(
         errorText ||
           `Upstream HTTP ${response.status}`,
         {
-          status: response.status,
+          status:
+            response.status,
 
           headers: {
             "Content-Type":
@@ -208,33 +284,68 @@ export default async function handler(
     // DETECTAR PLAYLIST
     // ------------------------------------------------------------
     //
-    // IMPORTANTE:
+    // Soporta:
     //
-    // Tu proveedor utiliza:
+    // /get.php
+    // /live/.../*.m3u
+    // /live/.../*.m3u8
     //
-    // /get.php?...type=m3u_plus
-    //
-    // /live/.../xxxx.m3u
-    //
-    // /live/.../xxxx.m3u8
-    //
-    // Por eso los TRES se consideran playlist.
-    //
+    // No tocar esta lógica porque también sirve para VOD
+    // y listas IPTV.
+    // ------------------------------------------------------------
 
     const isPlaylist =
-      contentTypeLower.includes("mpegurl") ||
-      contentTypeLower.includes("m3u") ||
-      targetLower.includes("/get.php") ||
-      targetLower.endsWith(".m3u") ||
-      targetLower.includes(".m3u?") ||
-      targetLower.includes(".m3u&") ||
-      targetLower.endsWith(".m3u8") ||
-      targetLower.includes(".m3u8?") ||
-      targetLower.includes(".m3u8&") ||
-      finalLower.endsWith(".m3u") ||
-      finalLower.includes(".m3u?") ||
-      finalLower.includes(".m3u8") ||
-      finalLower.includes(".m3u8?");
+      contentTypeLower.includes(
+        "mpegurl"
+      ) ||
+
+      contentTypeLower.includes(
+        "m3u"
+      ) ||
+
+      targetLower.includes(
+        "/get.php"
+      ) ||
+
+      targetLower.endsWith(
+        ".m3u"
+      ) ||
+
+      targetLower.includes(
+        ".m3u?"
+      ) ||
+
+      targetLower.includes(
+        ".m3u&"
+      ) ||
+
+      targetLower.endsWith(
+        ".m3u8"
+      ) ||
+
+      targetLower.includes(
+        ".m3u8?"
+      ) ||
+
+      targetLower.includes(
+        ".m3u8&"
+      ) ||
+
+      finalLower.endsWith(
+        ".m3u"
+      ) ||
+
+      finalLower.includes(
+        ".m3u?"
+      ) ||
+
+      finalLower.includes(
+        ".m3u8"
+      ) ||
+
+      finalLower.includes(
+        ".m3u8?"
+      );
 
     console.log(
       "IS PLAYLIST:",
@@ -246,14 +357,18 @@ export default async function handler(
     // ------------------------------------------------------------
 
     if (isPlaylist) {
-      const text = await response.text();
+      const text =
+        await response.text();
 
       console.log(
         "=========== PLAYLIST ==========="
       );
 
       console.log(
-        text.substring(0, 5000)
+        text.substring(
+          0,
+          5000
+        )
       );
 
       console.log(
@@ -265,8 +380,12 @@ export default async function handler(
       // ----------------------------------------------------------
 
       if (
-        !text.includes("#EXTM3U") &&
-        !text.includes("#EXT-X-")
+        !text.includes(
+          "#EXTM3U"
+        ) &&
+        !text.includes(
+          "#EXT-X-"
+        )
       ) {
         return new Response(
           JSON.stringify({
@@ -283,7 +402,10 @@ export default async function handler(
               contentType,
 
             upstream_preview:
-              text.substring(0, 1000),
+              text.substring(
+                0,
+                1000
+              ),
           }),
           {
             status: 502,
@@ -309,11 +431,42 @@ export default async function handler(
         requestUrl.origin;
 
       // ----------------------------------------------------------
+      // REFERER DE LA PLAYLIST
+      // ----------------------------------------------------------
+      //
+      // Esta es la parte nueva para LIVE.
+      //
+      // Si flowzy redirige la playlist hacia:
+      //
+      // http://54.39.97.117:8080/...
+      //
+      // usamos la URL FINAL de la playlist como referencia.
+      //
+      // Así los segmentos reciben:
+      //
+      // Referer: URL-DE-LA-PLAYLIST
+      //
+      // en lugar de:
+      //
+      // Referer: http://54.39.97.117:8080/
+      //
+      // ----------------------------------------------------------
+
+      const playlistReferer =
+        finalUrl;
+
+      console.log(
+        "PLAYLIST REFERER:",
+        playlistReferer
+      );
+
+      // ----------------------------------------------------------
       // CONVERTIR URL A PROXY
       // ----------------------------------------------------------
 
       const toProxyUrl = (
-        value: string
+        value: string,
+        referer?: string
       ): string => {
         try {
           const absoluteUrl =
@@ -338,6 +491,21 @@ export default async function handler(
             "url",
             absoluteUrl
           );
+
+          // ----------------------------------------------------
+          // LIVE:
+          // conservar el Referer de la playlist.
+          //
+          // Esto solamente se añade cuando existe.
+          // VOD/imágenes/etc. siguen funcionando igual.
+          // ----------------------------------------------------
+
+          if (referer) {
+            proxyUrl.searchParams.set(
+              "_ref",
+              referer
+            );
+          }
 
           return proxyUrl.toString();
         } catch (error) {
@@ -370,12 +538,23 @@ export default async function handler(
               // ------------------------------------------------
               // URL DIRECTA
               // ------------------------------------------------
+              //
+              // Segmentos HLS:
+              //
+              // segmento.ts
+              // segmento.ts?token=...
+              // https://servidor/segmento.ts?...
+              //
+              // ------------------------------------------------
 
               if (
-                !trimmed.startsWith("#")
+                !trimmed.startsWith(
+                  "#"
+                )
               ) {
                 return toProxyUrl(
-                  trimmed
+                  trimmed,
+                  playlistReferer
                 );
               }
 
@@ -395,7 +574,8 @@ export default async function handler(
                   uri: string
                 ) => {
                   return `URI="${toProxyUrl(
-                    uri
+                    uri,
+                    playlistReferer
                   )}"`;
                 }
               );
@@ -427,7 +607,8 @@ export default async function handler(
             "Cache-Control":
               "no-cache, no-store, must-revalidate",
 
-            Pragma: "no-cache",
+            Pragma:
+              "no-cache",
 
             ...corsHeaders,
           },
@@ -440,7 +621,8 @@ export default async function handler(
     // ------------------------------------------------------------
 
     const targetPath =
-      parsedTarget.pathname.toLowerCase();
+      parsedTarget.pathname
+        .toLowerCase();
 
     const extension =
       targetPath.match(
@@ -451,12 +633,23 @@ export default async function handler(
       string,
       string
     > = {
-      mp4: "video/mp4",
-      m4v: "video/mp4",
-      mkv: "video/x-matroska",
-      avi: "video/x-msvideo",
-      mov: "video/quicktime",
-      ts: "video/mp2t",
+      mp4:
+        "video/mp4",
+
+      m4v:
+        "video/mp4",
+
+      mkv:
+        "video/x-matroska",
+
+      avi:
+        "video/x-msvideo",
+
+      mov:
+        "video/quicktime",
+
+      ts:
+        "video/mp2t",
 
       m3u:
         "application/vnd.apple.mpegurl",
@@ -464,11 +657,20 @@ export default async function handler(
       m3u8:
         "application/vnd.apple.mpegurl",
 
-      jpg: "image/jpeg",
-      jpeg: "image/jpeg",
-      png: "image/png",
-      webp: "image/webp",
-      gif: "image/gif",
+      jpg:
+        "image/jpeg",
+
+      jpeg:
+        "image/jpeg",
+
+      png:
+        "image/png",
+
+      webp:
+        "image/webp",
+
+      gif:
+        "image/gif",
     };
 
     let finalContentType =
@@ -482,7 +684,9 @@ export default async function handler(
     // ------------------------------------------------------------
 
     if (
-      mimeByExtension[extension]
+      mimeByExtension[
+        extension
+      ]
     ) {
       finalContentType =
         mimeByExtension[
