@@ -65,12 +65,9 @@ export default async function handler(request: Request): Promise<Response> {
     } catch {
       const lower = data.toLowerCase();
       const isAuthError =
-  upstream.status === 401 ||
-  upstream.status === 403 ||
-  lower.includes("invalid auth") ||
-  lower.includes("invalid credential") ||
-  lower.includes("unauthorized") ||
-  lower.includes("authorization required");
+        lower.includes("invalid auth") ||
+        lower.includes("invalid credential") ||
+        lower.includes("unauthorized");
 
       return new Response(
         JSON.stringify({
