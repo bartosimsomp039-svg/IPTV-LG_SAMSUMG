@@ -18,7 +18,7 @@ export class Login {
   playsinline
   aria-hidden="true"
 >
-  <source src="/videos/login.mp4" type="video/mp4">
+  <source src="/videos/main_tv.mp4" type="video/mp4">
 </video>
 
     <div class="panel">
