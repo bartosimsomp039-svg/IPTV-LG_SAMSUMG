@@ -133,7 +133,7 @@ this.video.addEventListener("waiting", () => {
     if (!this.currentChannel) return;
     const url = this.xtream.getLiveStreamUrl(this.currentChannel.stream_id);
     console.log("LIVE URL:", url);
-    this.playUrl(this.getPlaybackUrl(url));
+    this.playUrl(url);
   }
 
   // ── VOD ───────────────────────────────────────────
