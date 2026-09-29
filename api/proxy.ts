@@ -1,4 +1,4 @@
-﻿﻿// Edge Runtime — NO cambiar a Node.js.
+﻿// Edge Runtime — NO cambiar a Node.js.
 
 export const config = {
   runtime: "edge",
@@ -190,11 +190,64 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     );
 
     response = await fetch(targetUrl, {
-      method: "GET",
-      headers: upstreamHeaders,
-      redirect: "follow",
-      cache: "no-store",
-    });
+  method: "GET",
+  headers: upstreamHeaders,
+  redirect: "manual",
+  cache: "no-store",
+});
+
+// 🔧 CAMBIO LIVE: capturar el 302 de Flowzy
+if (
+  response.status >= 300 &&
+  response.status < 400
+) {
+  const redirectUrl =
+    response.headers.get("location");
+
+  console.log(
+    "🔧 LIVE REDIRECT:",
+    redirectUrl
+  );
+
+  if (redirectUrl) {
+    try {
+      const absoluteRedirect =
+        new URL(
+          redirectUrl,
+          targetUrl
+        ).toString();
+
+      console.log(
+        "🔧 LIVE URL FINAL:",
+        absoluteRedirect
+      );
+
+      // Pedimos la playlist HLS REAL
+      // que Flowzy entregó mediante Location.
+      response = await fetch(
+        absoluteRedirect,
+        {
+          method: "GET",
+          headers: {
+            ...upstreamHeaders,
+
+            // 🔧 El servidor final debe recibir
+            // como Referer la URL que originó
+            // el redirect.
+            Referer: absoluteRedirect,
+          },
+          redirect: "follow",
+          cache: "no-store",
+        }
+      );
+    } catch (redirectError) {
+      console.error(
+        "🔧 LIVE REDIRECT ERROR:",
+        redirectError
+      );
+    }
+  }
+}
 
     console.log(
       `UPSTREAM STATUS ATTEMPT ${attempt}:`,
@@ -541,8 +594,7 @@ if (!response) {
       // 🔧 CAMBIO LIVE:
       // No enviar como Referer la URL completa del manifiesto/token.
       // Algunos backends HLS rechazan los segmentos con 403.
-      const playlistReferer =
-        new URL(finalUrl).origin + "/";
+      const playlistReferer = finalUrl;
 
       console.log(
         "PLAYLIST FINAL:",
