@@ -139,38 +139,38 @@ this.video.addEventListener("waiting", () => {
   // ── VOD ───────────────────────────────────────────
 
   public playMovie(movie: Movie): void {
-    this.isVod = true;
-    this.currentChannel = null;
-    this.reconnectAttempts = 0;
-    this.reconnecting = false;
-    this.lastWorkingUrl = "";
-    const ext = movie.container_extension ?? "mp4";
-    this.startVodCandidates(
-      this.getExtensionCandidates(ext).map((candidate) =>
-        this.getPlaybackUrl(
-          this.xtream.getMovieStreamUrl(movie.stream_id, candidate),
-        ),
-      ),
-    );
-  }
+  this.isVod = true;
+  this.currentChannel = null;
+  this.reconnectAttempts = 0;
+  this.reconnecting = false;
+  this.lastWorkingUrl = "";
+
+  const ext = movie.container_extension ?? "mp4";
+
+  this.startVodCandidates(
+    this.getExtensionCandidates(ext).map((candidate) =>
+      this.xtream.getMovieStreamUrl(movie.stream_id, candidate)
+    ),
+  );
+}
 
   // ── SERIES ────────────────────────────────────────
 
   public playSeriesEpisode(streamId: number, extension: string): void {
-    this.isVod = true;
-    this.currentChannel = null;
-    this.reconnectAttempts = 0;
-    this.reconnecting = false;
-    this.lastWorkingUrl = "";
-    const ext = extension || "mp4";
-    this.startVodCandidates(
-      this.getExtensionCandidates(ext).map((candidate) =>
-        this.getPlaybackUrl(
-          this.xtream.getSeriesStreamUrl(streamId, candidate),
-        ),
-      ),
-    );
-  }
+  this.isVod = true;
+  this.currentChannel = null;
+  this.reconnectAttempts = 0;
+  this.reconnecting = false;
+  this.lastWorkingUrl = "";
+
+  const ext = extension || "mp4";
+
+  this.startVodCandidates(
+    this.getExtensionCandidates(ext).map((candidate) =>
+      this.xtream.getSeriesStreamUrl(streamId, candidate)
+    ),
+  );
+}
 
   // ── CORE ──────────────────────────────────────────
 
