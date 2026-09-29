@@ -282,21 +282,21 @@ public getCurrentLiveExtension(): string {
     // ── Stream URLs ───────────────────────────────────────
 
     public getLiveStreamUrl(streamId: number): string {
-
-    const raw =
-`${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${this.liveExtension}`;
-
-    return this.proxifyStream(raw);
-
+    return (
+        `${this.host}/live/` +
+        `${encodeURIComponent(this.username)}/` +
+        `${encodeURIComponent(this.password)}/` +
+        `${streamId}.${this.liveExtension}`
+    );
 }
 
-    public getLiveTsUrl(streamId: number): string {
-
-    const raw =
-`${this.host}/live/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.ts`;
-
-    return this.proxifyStream(raw);
-
+public getLiveTsUrl(streamId: number): string {
+    return (
+        `${this.host}/live/` +
+        `${encodeURIComponent(this.username)}/` +
+        `${encodeURIComponent(this.password)}/` +
+        `${streamId}.ts`
+    );
 }
 
     public getMovieStreamUrl(

@@ -60,7 +60,7 @@ export class PlayerService {
 private watchdogTimer: number | null = null;
 private lastVideoTime = 0;
 private freezeCounter = 0;
-private readonly maxFreezeChecks = 3;
+private readonly maxFreezeChecks = 10;
 
   constructor(video: HTMLVideoElement, xtream: XtreamService) {
     this.video = video;
@@ -89,8 +89,10 @@ private readonly maxFreezeChecks = 3;
       if (!this.isVod) this.reconnect();
     });
     this.video.addEventListener("stalled", () => {
-      if (!this.isVod) this.reconnect();
-    });
+  if (!this.isVod) {
+    console.warn("[TV] Stream stalled → esperando recuperación nativa...");
+  }
+});
 
 this.video.addEventListener("waiting", () => {
 
@@ -178,25 +180,30 @@ this.video.addEventListener("waiting", () => {
    * without the browser CORS restrictions that affect XHR/fetch.
    */
   private getPlaybackUrl(sourceUrl: string): string {
-    // Live can be loaded natively by TVs/Safari. VOD stays on the same-origin
-    // proxy so HTTPS, Range and the normalized MIME type work consistently on
-    // both desktop browsers and Smart TVs.
-    if ((Platform.isTV() || Platform.isSafari()) && !this.isVod) {
-      return sourceUrl;
-    }
-
-    try {
-      const source = new URL(sourceUrl, window.location.href);
-      const proxy = new URL(this.proxyPath, window.location.origin);
-
-      if (source.pathname === proxy.pathname) return source.toString();
-
-      proxy.searchParams.set("url", source.toString());
-      return proxy.toString();
-    } catch {
-      return sourceUrl;
-    }
+  // LG webOS / Samsung Tizen:
+  // usar SIEMPRE la URL original del servidor IPTV.
+  // El reproductor nativo del Smart TV se encarga de LIVE,
+  // películas y series sin pasar por el proxy.
+  if (Platform.isTV()) {
+    return sourceUrl;
   }
+
+  // PC / navegador:
+  // usar el proxy para evitar problemas de CORS.
+  try {
+    const source = new URL(sourceUrl, window.location.href);
+    const proxy = new URL(this.proxyPath, window.location.origin);
+
+    if (source.pathname === proxy.pathname) {
+      return source.toString();
+    }
+
+    proxy.searchParams.set("url", source.toString());
+    return proxy.toString();
+  } catch {
+    return sourceUrl;
+  }
+}
 
   private getExtensionCandidates(extension: string): string[] {
     const normalized = extension.trim().toLowerCase().replace(/^\./, "");
