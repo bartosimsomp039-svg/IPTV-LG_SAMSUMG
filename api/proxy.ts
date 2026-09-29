@@ -229,15 +229,18 @@ if (
         {
           method: "GET",
           headers: {
-            ...upstreamHeaders,
+  ...upstreamHeaders,
 
-            // 🔧 El servidor final debe recibir
-            // como Referer la URL que originó
-            // el redirect.
-            Referer: absoluteRedirect,
-          },
-          redirect: "follow",
-          cache: "no-store",
+  // Mantener como Referer el servidor Xtream que
+  // originó la redirección.
+  Referer: targetUrl,
+
+  // El servidor final recibe el Origin
+  // correspondiente al servidor Xtream.
+  Origin: new URL(targetUrl).origin,
+},
+redirect: "follow",
+cache: "no-store",
         }
       );
     } catch (redirectError) {
