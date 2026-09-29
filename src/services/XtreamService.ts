@@ -18,7 +18,6 @@ export class XtreamService {
     private lastLoginError = "";
 
     // Cache de capacidades del proveedor
-private liveExtension = "m3u8";
 private movieExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
 private seriesExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
 
@@ -149,12 +148,6 @@ private proxifyImage(url: string | null | undefined): string {
 
 }
 
-public getCurrentLiveExtension(): string {
-
-    return this.liveExtension;
-
-}
-
     public async getLiveCategories(): Promise<Category[]> {
 
         return await this.api.get(
@@ -278,7 +271,7 @@ public getCurrentLiveExtension(): string {
         `${this.host}/live/` +
         `${encodeURIComponent(this.username)}/` +
         `${encodeURIComponent(this.password)}/` +
-        `${streamId}.${this.liveExtension}`
+        `${streamId}`
     );
 }
 
