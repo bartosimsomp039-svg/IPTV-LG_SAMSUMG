@@ -27,14 +27,6 @@ private seriesExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
     return "https://iptv-lg-samsumg.vercel.app";
 }
 
-    private proxifyStream(url: string): string {
-    if (!url.startsWith("http://") && !url.startsWith("https://")) {
-        return url;
-    }
-
-    return `${this.getApiBase()}/api/proxy?url=${encodeURIComponent(url)}`;
-}
-
 // ── Proxifica imágenes (logos, portadas, iconos) ──────
 private proxifyImage(url: string | null | undefined): string {
 
@@ -310,14 +302,10 @@ public getLiveTsUrl(streamId: number): string {
             this.movieExtensions,
         )[0];
 
-    const raw =
-`${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
-
-    return this.proxifyStream(raw);
-
+    return `${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
 }
 
-    public getSeriesStreamUrl(
+public getSeriesStreamUrl(
     streamId: number,
     extension: string,
 ): string {
@@ -328,11 +316,7 @@ public getLiveTsUrl(streamId: number): string {
             this.seriesExtensions,
         )[0];
 
-    const raw =
-`${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
-
-    return this.proxifyStream(raw);
-
+    return `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
 }
 
     // ── Session ───────────────────────────────────────────
