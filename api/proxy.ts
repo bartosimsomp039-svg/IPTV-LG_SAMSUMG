@@ -90,8 +90,8 @@ export default async function handler(
   // ------------------------------------------------------------
 
   const upstreamReferer =
-    internalReferer ||
-    `${parsedTarget.origin}/`;
+  internalReferer ||
+  targetUrl;
 
   const upstreamHeaders: Record<string, string> = {
     "User-Agent":
