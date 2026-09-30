@@ -183,9 +183,9 @@ this.video.addEventListener("waiting", () => {
     // Live can be loaded natively by TVs/Safari. VOD stays on the same-origin
     // proxy so HTTPS, Range and the normalized MIME type work consistently on
     // both desktop browsers and Smart TVs.
-    if ((Platform.isTV() || Platform.isSafari()) && !this.isVod) {
-      return sourceUrl;
-    }
+    if (Platform.isTV()) {
+  return sourceUrl;
+}
 
     try {
       const source = new URL(sourceUrl, window.location.href);
