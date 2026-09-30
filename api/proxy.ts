@@ -93,20 +93,28 @@ export default async function handler(
   internalReferer ||
   targetUrl;
 
-  const upstreamHeaders: Record<string, string> = {
-    "User-Agent":
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+  const isVodRequest =
+  targetLower.includes("/movie/") ||
+  targetLower.includes("/series/") ||
+  targetLower.endsWith(".mp4") ||
+  targetLower.includes(".mp4?") ||
+  targetLower.endsWith(".mkv") ||
+  targetLower.includes(".mkv?");
 
-    Accept: "*/*",
+const upstreamHeaders: Record<string, string> = {
+  "User-Agent":
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 
-    "Accept-Encoding": "identity",
+  Accept: "*/*",
 
-    // 🔧 CAMBIO LIVE:
-    // Mantener Referer y Origin coherentes con el servidor
-    // que realmente entrega el HLS.
-    Referer: upstreamReferer,
-    Origin: new URL(upstreamReferer).origin,
-  };
+  "Accept-Encoding": "identity",
+};
+
+if (!isVodRequest) {
+  upstreamHeaders["Referer"] = upstreamReferer;
+  upstreamHeaders["Origin"] =
+    new URL(upstreamReferer).origin;
+}
 
   // ------------------------------------------------------------
   // RANGE
