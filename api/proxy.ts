@@ -106,13 +106,6 @@ async function handler(
     Referer: upstreamReferer,
   };
 
-  // HLS segments can require the same origin as the rewritten playlist.
-  // Keep this header restricted to the internal live-playlist flow so it
-  // cannot change the behavior of movies, series, or artwork.
-  if (internalReferer) {
-    upstreamHeaders.Origin = new URL(upstreamReferer).origin;
-  }
-
   // ------------------------------------------------------------
   // RANGE
   // ------------------------------------------------------------
@@ -185,18 +178,62 @@ async function handler(
     let response: Response | null = null;
 let lastError: unknown = null;
 
-const maxAttempts = 3;
+const isLiveSegment = requestedType === "TS";
 
-for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+for (let attempt = 1; attempt <= 3; attempt++) {
   try {
     console.log(
-      `PROXY FETCH ATTEMPT ${attempt}/${maxAttempts}:`,
+      `PROXY FETCH ATTEMPT ${attempt}/3:`,
       targetUrl
     );
 
+    let attemptHeaders: Record<string, string>;
+
+    if (isLiveSegment) {
+      // LIVE TS:
+      // Algunos servidores IPTV rechazan segmentos si el proxy elimina
+      // el Referer; otros hacen exactamente lo contrario. Probamos
+      // variantes controladas sin tocar el flujo de VOD.
+      attemptHeaders = {
+        "User-Agent": upstreamHeaders["User-Agent"],
+        Accept: "*/*",
+        "Accept-Encoding": "identity",
+      };
+
+      if (attempt === 1) {
+  // Intento 1: origen de la playlist.
+  attemptHeaders["Referer"] = upstreamReferer;
+} else if (attempt === 2) {
+  // Intento 2: origen del segmento.
+  attemptHeaders["Referer"] = `${new URL(targetUrl).origin}/`;
+} else {
+  // Intento 3: sin Referer.
+  delete attemptHeaders["Referer"];
+}
+
+if (rangeHeader) {
+  attemptHeaders["Range"] = rangeHeader;
+}
+
+      console.log(
+        "LIVE TS HEADERS:",
+        JSON.stringify({
+          attempt,
+          referer: attemptHeaders["Referer"] || null,
+          range: rangeHeader || null,
+        })
+      );
+    } else {
+      // VOD / imágenes / otros recursos:
+      // mantener exactamente el comportamiento actual.
+      attemptHeaders = {
+        ...upstreamHeaders,
+      };
+    }
+
     response = await fetch(targetUrl, {
       method: "GET",
-      headers: upstreamHeaders,
+      headers: attemptHeaders,
       redirect: "follow",
       cache: "no-store",
     });
@@ -206,12 +243,34 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       response.status
     );
 
-    // Si funcionó, salimos inmediatamente.
     if (response.ok) {
       break;
     }
 
-    // Para errores recuperables, intentamos nuevamente.
+    // LIVE TS: reintentar únicamente ante 403.
+    if (
+      isLiveSegment &&
+      response.status === 403 &&
+      attempt < 3
+    ) {
+      lastError = new Error(
+        "Upstream HTTP 403 for LIVE TS"
+      );
+
+      try {
+        await response.arrayBuffer();
+      } catch {}
+
+      response = null;
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, 150 * attempt)
+      );
+
+      continue;
+    }
+
+    // Errores recuperables normales.
     if (
       response.status === 502 ||
       response.status === 503 ||
@@ -221,22 +280,21 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
         `Upstream HTTP ${response.status}`
       );
 
-      // Consumir el body antes de volver a intentar.
       try {
         await response.arrayBuffer();
       } catch {}
 
       response = null;
 
-      if (attempt < maxAttempts) {
+      if (attempt < 3) {
         await new Promise((resolve) =>
           setTimeout(resolve, 300 * attempt)
         );
+
         continue;
       }
     }
 
-    // Otros códigos HTTP no necesitan reintentos.
     break;
   } catch (error) {
     lastError = error;
@@ -248,7 +306,7 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 
     response = null;
 
-    if (attempt < maxAttempts) {
+    if (attempt < 3) {
       await new Promise((resolve) =>
         setTimeout(resolve, 300 * attempt)
       );
@@ -647,15 +705,35 @@ if (!response) {
               // ------------------------------------------------
 
               if (
-                !trimmed.startsWith(
-                  "#"
-                )
-              ) {
-                return toProxyUrl(
-                  trimmed,
-                  playlistReferer
-                );
-              }
+  !trimmed.startsWith(
+    "#"
+  )
+) {
+  const absoluteUrl = new URL(
+    trimmed,
+    baseUrl
+  ).toString();
+
+  // LIVE: los segmentos .ts siguen pasando por el proxy.
+  // Así Chrome/Edge no dependen del CORS del servidor IPTV y
+  // el proxy puede probar las variantes de Referer necesarias.
+  if (
+  absoluteUrl
+    .toLowerCase()
+    .includes(".ts")
+) {
+  return toProxyUrl(
+    absoluteUrl,
+    finalUrl
+  );
+}
+
+  // El resto mantiene el comportamiento anterior.
+  return toProxyUrl(
+    trimmed,
+    playlistReferer
+  );
+}
 
               // ------------------------------------------------
               // URI="..."

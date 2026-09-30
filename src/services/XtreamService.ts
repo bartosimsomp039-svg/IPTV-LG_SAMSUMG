@@ -329,23 +329,23 @@ public getLiveTsUrl(streamId: number): string {
 
 }
 
-    public getSeriesStreamUrl(
-    streamId: number,
-    extension: string,
-): string {
+        public getSeriesStreamUrl(
+        streamId: number,
+        extension: string,
+    ): string {
 
-    const ext =
-        this.normalizeExtension(
-            extension,
-            this.seriesExtensions,
-        )[0];
+        const ext =
+            this.normalizeExtension(
+                extension,
+                this.seriesExtensions,
+            )[0];
 
-    const raw =
-`${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
+        const raw =
+    `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
 
-    return this.proxifyStream(raw);
+        return raw;
 
-}
+    }
 
     // ── Session ───────────────────────────────────────────
 

@@ -4,10 +4,11 @@ import { Router } from "../../app/Router";
 import { DataManager } from "../../services/DataManager";
 import { Navigation } from "../../services/Navigation";
 import { PlayerService } from "../../services/PlayerService";
+import { LivePlayerService } from "../../services/LivePlayerService";
 
 export class Player {
 
-    private player: PlayerService | null = null;
+    private player: PlayerService | LivePlayerService | null = null;
 
     private controlsVisible = true;
 
@@ -176,7 +177,7 @@ export class Player {
 
             title.textContent = Navigation.selectedChannel.name;
 
-            this.player = new PlayerService(video, DataManager.getXtream());
+            this.player = new LivePlayerService(video, DataManager.getXtream());
 
             this.player.play(Navigation.selectedChannel);
 

@@ -157,20 +157,34 @@ this.video.addEventListener("waiting", () => {
   // ── SERIES ────────────────────────────────────────
 
   public playSeriesEpisode(streamId: number, extension: string): void {
-    this.isVod = true;
-    this.currentChannel = null;
-    this.reconnectAttempts = 0;
-    this.reconnecting = false;
-    this.lastWorkingUrl = "";
-    const ext = extension || "mp4";
-    this.startVodCandidates(
-      this.getExtensionCandidates(ext).map((candidate) =>
-        this.getPlaybackUrl(
-          this.xtream.getSeriesStreamUrl(streamId, candidate),
-        ),
-      ),
-    );
-  }
+  this.isVod = true;
+  this.currentChannel = null;
+  this.reconnectAttempts = 0;
+  this.reconnecting = false;
+  this.lastWorkingUrl = "";
+
+  const ext = extension || "mp4";
+
+  this.startVodCandidates(
+    this.getExtensionCandidates(ext).map((candidate) => {
+      const sourceUrl = this.xtream.getSeriesStreamUrl(
+        streamId,
+        candidate,
+      );
+
+      try {
+        const source = new URL(sourceUrl, window.location.href);
+        const vodProxy = new URL("/api/vod", window.location.origin);
+
+        vodProxy.searchParams.set("url", source.toString());
+
+        return vodProxy.toString();
+      } catch {
+        return sourceUrl;
+      }
+    }),
+  );
+}
 
   // ── CORE ──────────────────────────────────────────
 
