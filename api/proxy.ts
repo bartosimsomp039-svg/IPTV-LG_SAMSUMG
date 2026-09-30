@@ -1,9 +1,5 @@
 ﻿// Edge Runtime — NO cambiar a Node.js.
 
-export const config = {
-  runtime: "nodejs",
-};
-
 export default async function handler(
   request: Request
 ): Promise<Response> {
@@ -31,6 +27,7 @@ export default async function handler(
   // URL DESTINO
   // ------------------------------------------------------------
 
+  console.log("[PROXY DEBUG] request.url =", request.url);
   const requestUrl = new URL(request.url);
 
   // URLSearchParams.get() ya decodifica el parámetro.
