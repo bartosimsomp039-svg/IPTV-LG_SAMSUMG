@@ -1,100 +1,177 @@
-// Edge Runtime — igual que proxy.ts.
-// El Edge Runtime de Vercel SÍ puede conectarse a puertos no estándar
-// como 8080 y 8880 que usan los servidores Xtream IPTV.
-// El Node.js runtime tiene restricciones de red que bloquean esos puertos.
-export const config = { runtime: "edge" };
+import type { VercelRequest, VercelResponse } from "@vercel/node";
 
-const CORS: Record<string, string> = {
+export const config = {
+  runtime: "nodejs",
+  maxDuration: 15,
+};
+
+const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "*",
 };
 
-async function handler(request: Request): Promise<Response> {
-  if (request.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: CORS });
+export default async function handler(
+  req: VercelRequest,
+  res: VercelResponse
+) {
+  // CORS
+  Object.entries(CORS).forEach(([key, value]) => {
+    res.setHeader(key, value);
+  });
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).end();
   }
 
   let targetUrl: string | null = null;
 
-  if (request.method === "POST") {
-    try {
-      const body = (await request.json()) as { url?: string };
-      targetUrl = body?.url ?? null;
-    } catch {
-      return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json", ...CORS },
-      });
+  // POST
+  if (req.method === "POST") {
+    const body = req.body;
+
+    if (body && typeof body === "object" && !Array.isArray(body)) {
+      const value = (body as { url?: unknown }).url;
+
+      if (typeof value === "string") {
+        targetUrl = value;
+      }
     }
-  } else {
-    const url = new URL(request.url);
-    // URLSearchParams.get() ya decodifica el parámetro.
-    targetUrl = url.searchParams.get("url");
+
+    // Por si Vercel entrega el body como texto
+    if (!targetUrl && typeof body === "string") {
+      try {
+        const parsed = JSON.parse(body);
+
+        if (
+          parsed &&
+          typeof parsed === "object" &&
+          typeof parsed.url === "string"
+        ) {
+          targetUrl = parsed.url;
+        }
+      } catch {
+        return res.status(400).json({
+          error: "Invalid JSON body",
+        });
+      }
+    }
+  }
+
+  // GET
+  else {
+    const queryUrl = req.query?.url;
+
+    if (typeof queryUrl === "string") {
+      targetUrl = queryUrl;
+    } else if (Array.isArray(queryUrl) && queryUrl.length > 0) {
+      targetUrl = queryUrl[0];
+    }
   }
 
   if (!targetUrl) {
-    return new Response(JSON.stringify({ error: "Missing url" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", ...CORS },
+    return res.status(400).json({
+      error: "Missing url",
     });
   }
 
-  if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
-    return new Response(JSON.stringify({ error: "Invalid URL" }), {
-      status: 400,
-      headers: { "Content-Type": "application/json", ...CORS },
+  targetUrl = targetUrl.trim();
+
+  if (
+    !targetUrl.startsWith("http://") &&
+    !targetUrl.startsWith("https://")
+  ) {
+    return res.status(400).json({
+      error: "Invalid URL",
     });
   }
+
+  let parsedUrl: URL;
 
   try {
-    const upstream = await fetch(targetUrl, {
+    parsedUrl = new URL(targetUrl);
+  } catch {
+    return res.status(400).json({
+      error: "Invalid target URL",
+    });
+  }
+
+  // Evita accidentalmente mandar URLs sin puerto esperado
+  console.log(
+    "[XTREAM] Request:",
+    `${parsedUrl.protocol}//${parsedUrl.hostname}${parsedUrl.port ? ":" + parsedUrl.port : ""}${parsedUrl.pathname}`
+  );
+
+  const controller = new AbortController();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, 12000);
+
+  try {
+    const upstream = await fetch(parsedUrl.toString(), {
+      method: "GET",
+
       headers: {
         "User-Agent":
           "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
-        Accept: "application/json, */*",
+
+        Accept: "application/json, text/plain, */*",
+
+        "Accept-Encoding": "identity",
       },
-      signal: AbortSignal.timeout(12000),
+
+      redirect: "follow",
+
+      signal: controller.signal,
     });
 
-    const data = (await upstream.text()).trim();
+    clearTimeout(timeout);
 
+    const raw = await upstream.text();
+    const data = raw.trim();
+
+    console.log(
+      "[XTREAM] Upstream status:",
+      upstream.status,
+      "bytes:",
+      data.length
+    );
+
+    // Intentar JSON
     let parsed: unknown;
+
     try {
-      parsed = data ? JSON.parse(data.replace(/^\uFEFF/, "")) : null;
+      parsed = data
+        ? JSON.parse(data.replace(/^\uFEFF/, ""))
+        : null;
     } catch {
       const lower = data.toLowerCase();
+
       const isAuthError =
         lower.includes("invalid auth") ||
         lower.includes("invalid credential") ||
-        lower.includes("unauthorized");
+        lower.includes("unauthorized") ||
+        lower.includes("authentication failed");
 
-      return new Response(
-        JSON.stringify({
-          error: data || `Xtream server returned HTTP ${upstream.status}`,
-        }),
-        {
-          status: isAuthError ? 401 : 502,
-          headers: { "Content-Type": "application/json", ...CORS },
-        }
-      );
+      return res.status(isAuthError ? 401 : 502).json({
+        error:
+          data ||
+          `Xtream server returned HTTP ${upstream.status}`,
+      });
     }
 
-    return new Response(JSON.stringify(parsed), {
-      status: upstream.status,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-cache",
-        ...CORS,
-      },
-    });
+    return res.status(upstream.status).json(parsed);
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : "Unknown error";
-    return new Response(JSON.stringify({ error: "Proxy error: " + msg }), {
-      status: 502,
-      headers: { "Content-Type": "application/json", ...CORS },
+    clearTimeout(timeout);
+
+    const message =
+      err instanceof Error ? err.message : String(err);
+
+    console.error("[XTREAM] Proxy error:", message);
+
+    return res.status(502).json({
+      error: "Proxy error: " + message,
     });
   }
 }
-
-export default { fetch: handler };
