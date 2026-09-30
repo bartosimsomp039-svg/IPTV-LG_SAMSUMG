@@ -171,8 +171,8 @@ export class SeriesDetail {
             return `
 <div class="episode-card"
      tabindex="0"
-     data-stream="${ep.id}"
-      data-ext="${ep.container_extension ?? "mp4"}">
+         data-stream="${ep.id ?? ep.stream_id ?? ep.episode_id ?? ""}"
+       data-ext="${ep.container_extension ?? ep.container ?? ep.extension ?? "mp4"}">
     ${thumb}
     <div class="episode-info">
         <div class="episode-num">E${ep.episode_num ?? ""}</div>
@@ -189,6 +189,11 @@ export class SeriesDetail {
 
                     const streamId = Number(card.dataset.stream);
                     const ext = card.dataset.ext ?? "mp4";
+
+                    if (!Number.isFinite(streamId) || streamId <= 0) {
+                        console.error("Episodio sin stream ID válido", card.dataset);
+                        return;
+                    }
 
                     Navigation.episodeStreamId = streamId;
                     Navigation.episodeExtension = ext;

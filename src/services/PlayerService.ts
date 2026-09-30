@@ -202,10 +202,19 @@ this.video.addEventListener("waiting", () => {
 
   private getExtensionCandidates(extension: string): string[] {
     const normalized = extension.trim().toLowerCase().replace(/^\./, "");
-    const candidates =
-      normalized === "mp4"
-        ? [normalized]
-        : [normalized, "mp4"];
+    // Xtream episode metadata is not consistent: some providers omit
+    // container_extension or report mp4 even when the playable file is MKV.
+    // Keep the provider's value first, but always retain the common VOD
+    // containers as fallbacks for both movies and series.
+    const candidates = [
+      ...(normalized ? [normalized] : []),
+      "mp4",
+      "mkv",
+      "avi",
+      "mov",
+      "m4v",
+      "ts",
+    ];
 
     return [...new Set(candidates)];
   }
