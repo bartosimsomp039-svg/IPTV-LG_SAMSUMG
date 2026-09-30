@@ -189,22 +189,98 @@ const maxAttempts = 3;
 
 for (let attempt = 1; attempt <= maxAttempts; attempt++) {
   try {
-    console.log(
-      `PROXY FETCH ATTEMPT ${attempt}/${maxAttempts}:`,
-      targetUrl
-    );
 
-    response = await fetch(targetUrl, {
-      method: "GET",
-      headers: upstreamHeaders,
-      redirect: "follow",
-      cache: "no-store",
-    });
+    // ------------------------------------------------------------
+    // FETCH UPSTREAM
+    // ------------------------------------------------------------
+    // Controlamos manualmente los redirects para VOD.
+    // Esto permite conservar Range cuando Xtream responde 302
+    // hacia el servidor real del video.
+    // ------------------------------------------------------------
 
-    console.log(
-      `UPSTREAM STATUS ATTEMPT ${attempt}:`,
-      response.status
-    );
+    let currentUrl = targetUrl;
+    let redirectCount = 0;
+    const maxRedirects = 5;
+
+    while (true) {
+      console.log(
+        `PROXY FETCH URL ${redirectCount + 1}:`,
+        currentUrl
+      );
+
+      response = await fetch(currentUrl, {
+        method: "GET",
+        headers: upstreamHeaders,
+        redirect: "manual",
+        cache: "no-store",
+      });
+
+      console.log(
+        `UPSTREAM STATUS URL ${redirectCount + 1}:`,
+        response.status,
+        currentUrl
+      );
+
+      // ----------------------------------------------------------
+      // REDIRECT
+      // ----------------------------------------------------------
+
+      if (
+        response.status >= 300 &&
+        response.status < 400
+      ) {
+        const location =
+          response.headers.get("location");
+
+        if (!location) {
+          break;
+        }
+
+        redirectCount++;
+
+        if (redirectCount > maxRedirects) {
+          console.error(
+            "TOO MANY REDIRECTS:",
+            currentUrl
+          );
+
+          break;
+        }
+
+        const nextUrl =
+          new URL(
+            location,
+            currentUrl
+          ).toString();
+
+        console.log(
+          "UPSTREAM REDIRECT:",
+          currentUrl,
+          "→",
+          nextUrl
+        );
+
+        // El servidor final recibe el mismo Range.
+        // El Referer cambia al origen final.
+        currentUrl = nextUrl;
+
+        upstreamHeaders.Referer =
+          new URL(currentUrl).origin + "/";
+
+        // Para VOD no necesitamos Origin.
+        if (!internalReferer) {
+          delete upstreamHeaders.Origin;
+        }
+
+        try {
+          await response.arrayBuffer();
+        } catch {}
+
+        continue;
+      }
+
+      break;
+    }
 
     // Si funcionó, salimos inmediatamente.
     if (response.ok) {
@@ -238,6 +314,7 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
 
     // Otros códigos HTTP no necesitan reintentos.
     break;
+
   } catch (error) {
     lastError = error;
 
