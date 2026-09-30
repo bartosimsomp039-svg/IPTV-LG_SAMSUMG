@@ -1,4 +1,4 @@
-﻿﻿﻿import Hls from "hls.js";
+﻿﻿import Hls from "hls.js";
 import mpegts from "mpegts.js";
 
 import type { Channel } from "../models/Channel";
@@ -183,9 +183,9 @@ this.video.addEventListener("waiting", () => {
     // Live can be loaded natively by TVs/Safari. VOD stays on the same-origin
     // proxy so HTTPS, Range and the normalized MIME type work consistently on
     // both desktop browsers and Smart TVs.
-    if (Platform.isTV()) {
-  return sourceUrl;
-}
+    if ((Platform.isTV() || Platform.isSafari()) && !this.isVod) {
+      return sourceUrl;
+    }
 
     try {
       const source = new URL(sourceUrl, window.location.href);
@@ -205,7 +205,7 @@ this.video.addEventListener("waiting", () => {
     const candidates =
       normalized === "mp4"
         ? [normalized]
-        : ["mp4", normalized];
+        : [normalized, "mp4"];
 
     return [...new Set(candidates)];
   }

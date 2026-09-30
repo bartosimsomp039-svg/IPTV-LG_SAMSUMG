@@ -1,6 +1,10 @@
-﻿// Edge Runtime — NO cambiar a Node.js.
+﻿﻿// Edge Runtime — NO cambiar a Node.js.
 
-export default async function handler(
+export const config = {
+  runtime: "edge",
+};
+
+async function handler(
   request: Request
 ): Promise<Response> {
   const corsHeaders: Record<string, string> = {
@@ -27,7 +31,6 @@ export default async function handler(
   // URL DESTINO
   // ------------------------------------------------------------
 
-  console.log("[PROXY DEBUG] request.url =", request.url);
   const requestUrl = new URL(request.url);
 
   // URLSearchParams.get() ya decodifica el parámetro.
@@ -87,31 +90,28 @@ export default async function handler(
   // ------------------------------------------------------------
 
   const upstreamReferer =
-  internalReferer ||
-  targetUrl;
+    internalReferer ||
+    `${parsedTarget.origin}/`;
 
-  const isVodRequest =
-  targetLower.includes("/movie/") ||
-  targetLower.includes("/series/") ||
-  targetLower.endsWith(".mp4") ||
-  targetLower.includes(".mp4?") ||
-  targetLower.endsWith(".mkv") ||
-  targetLower.includes(".mkv?");
+  const upstreamHeaders: Record<string, string> = {
+    "User-Agent":
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
 
-const upstreamHeaders: Record<string, string> = {
-  "User-Agent":
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+    Accept: "*/*",
 
-  Accept: "*/*",
+    "Accept-Encoding": "identity",
 
-  "Accept-Encoding": "identity",
-};
+    // The IPTV server expects a normal origin referer for VOD.  Do not send
+    // an Origin header for VOD: some Xtream panels reject it with HTTP 500.
+    Referer: upstreamReferer,
+  };
 
-if (!isVodRequest) {
-  upstreamHeaders["Referer"] = upstreamReferer;
-  upstreamHeaders["Origin"] =
-    new URL(upstreamReferer).origin;
-}
+  // HLS segments can require the same origin as the rewritten playlist.
+  // Keep this header restricted to the internal live-playlist flow so it
+  // cannot change the behavior of movies, series, or artwork.
+  if (internalReferer) {
+    upstreamHeaders.Origin = new URL(upstreamReferer).origin;
+  }
 
   // ------------------------------------------------------------
   // RANGE
@@ -195,67 +195,11 @@ for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     );
 
     response = await fetch(targetUrl, {
-  method: "GET",
-  headers: upstreamHeaders,
-  redirect: "manual",
-  cache: "no-store",
-});
-
-// 🔧 CAMBIO LIVE: capturar el 302 de Flowzy
-if (
-  response.status >= 300 &&
-  response.status < 400
-) {
-  const redirectUrl =
-    response.headers.get("location");
-
-  console.log(
-    "🔧 LIVE REDIRECT:",
-    redirectUrl
-  );
-
-  if (redirectUrl) {
-    try {
-      const absoluteRedirect =
-        new URL(
-          redirectUrl,
-          targetUrl
-        ).toString();
-
-      console.log(
-        "🔧 LIVE URL FINAL:",
-        absoluteRedirect
-      );
-
-      // Pedimos la playlist HLS REAL
-      // que Flowzy entregó mediante Location.
-      response = await fetch(
-        absoluteRedirect,
-        {
-          method: "GET",
-          headers: {
-  ...upstreamHeaders,
-
-  // Mantener como Referer el servidor Xtream que
-  // originó la redirección.
-  Referer: targetUrl,
-
-  // El servidor final recibe el Origin
-  // correspondiente al servidor Xtream.
-  Origin: new URL(targetUrl).origin,
-},
-redirect: "follow",
-cache: "no-store",
-        }
-      );
-    } catch (redirectError) {
-      console.error(
-        "🔧 LIVE REDIRECT ERROR:",
-        redirectError
-      );
-    }
-  }
-}
+      method: "GET",
+      headers: upstreamHeaders,
+      redirect: "follow",
+      cache: "no-store",
+    });
 
     console.log(
       `UPSTREAM STATUS ATTEMPT ${attempt}:`,
@@ -602,7 +546,8 @@ if (!response) {
       // 🔧 CAMBIO LIVE:
       // No enviar como Referer la URL completa del manifiesto/token.
       // Algunos backends HLS rechazan los segmentos con 403.
-      const playlistReferer = finalUrl;
+      const playlistReferer =
+        new URL(finalUrl).origin + "/";
 
       console.log(
         "PLAYLIST FINAL:",
@@ -979,3 +924,5 @@ if (!response) {
   }
 }
 
+// Web Standard handler supported by current Vercel Functions.
+export default { fetch: handler };

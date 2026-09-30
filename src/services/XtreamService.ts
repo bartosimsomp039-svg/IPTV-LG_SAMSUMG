@@ -24,7 +24,25 @@ private seriesExtensions = ["mp4", "mkv", "avi", "mov", "m4v", "ts"];
 
     // ── Proxifica streams (video HLS/VOD) ──────────────────
     private getApiBase(): string {
+    if (
+        typeof window !== "undefined" &&
+        window.location.protocol !== "file:"
+    ) {
+        return window.location.origin;
+    }
+
+    // Used only when the built app is opened from file:// on a TV or PC.
     return "https://iptv-lg-samsumg.vercel.app";
+}
+
+    private proxifyStream(url: string): string {
+    if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        return url;
+    }
+
+    const proxy = new URL("/api/proxy", this.getApiBase());
+    proxy.searchParams.set("url", url);
+    return proxy.toString();
 }
 
 // ── Proxifica imágenes (logos, portadas, iconos) ──────
@@ -34,7 +52,9 @@ private proxifyImage(url: string | null | undefined): string {
 
     if (!url.startsWith("http://") && !url.startsWith("https://")) return url;
 
-    return `${this.getApiBase()}/api/proxy?url=${encodeURIComponent(url)}`;
+    const proxy = new URL("/api/proxy", this.getApiBase());
+    proxy.searchParams.set("url", url);
+    return proxy.toString();
 
 }
 
@@ -302,10 +322,14 @@ public getLiveTsUrl(streamId: number): string {
             this.movieExtensions,
         )[0];
 
-    return `${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
+    const raw =
+`${this.host}/movie/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
+
+    return this.proxifyStream(raw);
+
 }
 
-public getSeriesStreamUrl(
+    public getSeriesStreamUrl(
     streamId: number,
     extension: string,
 ): string {
@@ -316,7 +340,11 @@ public getSeriesStreamUrl(
             this.seriesExtensions,
         )[0];
 
-    return `${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
+    const raw =
+`${this.host}/series/${encodeURIComponent(this.username)}/${encodeURIComponent(this.password)}/${streamId}.${ext}`;
+
+    return this.proxifyStream(raw);
+
 }
 
     // ── Session ───────────────────────────────────────────

@@ -10,7 +10,7 @@ const CORS: Record<string, string> = {
   "Access-Control-Allow-Headers": "*",
 };
 
-export default async function handler(request: Request): Promise<Response> {
+async function handler(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS });
   }
@@ -96,3 +96,5 @@ export default async function handler(request: Request): Promise<Response> {
     });
   }
 }
+
+export default { fetch: handler };
