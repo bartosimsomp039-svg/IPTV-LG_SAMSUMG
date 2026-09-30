@@ -200,16 +200,16 @@ for (let attempt = 1; attempt <= 3; attempt++) {
         "Accept-Encoding": "identity",
       };
 
-      if (attempt === 1) {
-  // Intento 1: origen de la playlist.
-  attemptHeaders["Referer"] = upstreamReferer;
-} else if (attempt === 2) {
-  // Intento 2: origen del segmento.
-  attemptHeaders["Referer"] = `${new URL(targetUrl).origin}/`;
-} else {
-  // Intento 3: sin Referer.
-  delete attemptHeaders["Referer"];
-}
+      // LIVE TS: siempre usar el origen de la playlist
+attemptHeaders["Referer"] =
+  new URL(upstreamReferer).origin + "/";
+
+attemptHeaders["User-Agent"] =
+  "Mozilla/5.0";
+
+attemptHeaders["Accept"] = "*/*";
+
+attemptHeaders["Accept-Encoding"] = "identity";
 
 if (rangeHeader) {
   attemptHeaders["Range"] = rangeHeader;
