@@ -924,5 +924,5 @@ if (!response) {
   }
 }
 
-// Web Standard handler supported by current Vercel Functions.
-export default { fetch: handler };
+// Vercel Edge Function
+export default handler;
