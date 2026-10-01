@@ -1,4 +1,4 @@
-﻿﻿// Edge Runtime — NO cambiar a Node.js.
+﻿// Edge Runtime — NO cambiar a Node.js.
 
 export const config = {
   runtime: "edge",
@@ -190,46 +190,52 @@ for (let attempt = 1; attempt <= 3; attempt++) {
     let attemptHeaders: Record<string, string>;
 
     if (isLiveSegment) {
-      // LIVE TS:
-      // Algunos servidores IPTV rechazan segmentos si el proxy elimina
-      // el Referer; otros hacen exactamente lo contrario. Probamos
-      // variantes controladas sin tocar el flujo de VOD.
-      attemptHeaders = {
-        "User-Agent": upstreamHeaders["User-Agent"],
-        Accept: "*/*",
-        "Accept-Encoding": "identity",
-      };
+  const refererOrigin = new URL(upstreamReferer).origin + "/";
 
-      // LIVE TS: siempre usar el origen de la playlist
-attemptHeaders["Referer"] =
-  new URL(upstreamReferer).origin + "/";
+  // Al recibir 403, el bucle probará:
+  // 1. Referer completo de la playlist
+  // 2. Solo el origen de la playlist
+  // 3. Sin Referer
+  const refererCandidates: (string | null)[] = internalReferer
+    ? [internalReferer, refererOrigin, null]
+    : [refererOrigin, null, null];
 
-attemptHeaders["User-Agent"] =
-  "Mozilla/5.0";
+  const referer = refererCandidates[attempt - 1] ?? null;
 
-attemptHeaders["Accept"] = "*/*";
+  attemptHeaders = {
+    "User-Agent": "Mozilla/5.0",
+    Accept: "*/*",
+    "Accept-Encoding": "identity",
+  };
 
-attemptHeaders["Accept-Encoding"] = "identity";
+  if (referer) {
+    attemptHeaders["Referer"] = referer;
+  }
 
-if (rangeHeader) {
-  attemptHeaders["Range"] = rangeHeader;
+  if (rangeHeader) {
+    attemptHeaders["Range"] = rangeHeader;
+  }
+
+  // No imprimir la URL del Referer: puede incluir el token de acceso.
+  console.log(
+    "LIVE TS HEADERS:",
+    JSON.stringify({
+      attempt,
+      refererMode: !referer
+        ? "none"
+        : internalReferer && referer === internalReferer
+          ? "playlist"
+          : "origin",
+      range: rangeHeader || null,
+    })
+  );
+} else {
+  // VOD / imágenes / otros recursos:
+  // mantener exactamente el comportamiento actual.
+  attemptHeaders = {
+    ...upstreamHeaders,
+  };
 }
-
-      console.log(
-        "LIVE TS HEADERS:",
-        JSON.stringify({
-          attempt,
-          referer: attemptHeaders["Referer"] || null,
-          range: rangeHeader || null,
-        })
-      );
-    } else {
-      // VOD / imágenes / otros recursos:
-      // mantener exactamente el comportamiento actual.
-      attemptHeaders = {
-        ...upstreamHeaders,
-      };
-    }
 
     response = await fetch(targetUrl, {
       method: "GET",
